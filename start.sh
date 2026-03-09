@@ -9,10 +9,10 @@ FRONTEND="$ROOT/frontend"
 echo "⚡ Starting Betting Creator Tracker"
 echo ""
 
-# 1. Start Postgres
+# 1. Start Postgres (Homebrew)
 echo "▶ Starting Postgres..."
-docker compose up -d db
-sleep 2
+brew services start postgresql@16 2>/dev/null || true
+sleep 1
 
 # 2. Backend setup
 echo "▶ Setting up backend..."
@@ -26,7 +26,7 @@ fi
 if [ ! -f ".env" ]; then
   cp .env.example .env
   # Set DB URL for local Docker Postgres
-  sed -i '' 's|DATABASE_URL=.*|DATABASE_URL=postgresql://postgres:postgres@localhost:5432/betting_creator_tracker|' .env
+  sed -i '' "s|DATABASE_URL=.*|DATABASE_URL=postgresql://$(whoami)@localhost:5432/betting_creator_tracker|" .env
 fi
 
 # Run migrations
