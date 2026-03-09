@@ -146,5 +146,83 @@ async def _scrape_creator_platform(creator, platform_config: dict, db):
 
 async def resolve_pending_outcomes():
     """Check game results and update Pick statuses."""
-    # TODO: Integrate with The Odds API to resolve pending picks
+    from datetime import datetime, timezone, timedelta
+    from app.database import SessionLocal
+    from app.models import Pick, PickStatus
+    from app.services.odds_api import get_completed_games, find_matching_game, SPORT_KEY_MAP
+    from app.services.outcome_resolver import resolve_pick
+    from app.services.record_updater import recompute_record
+
     log.info("Checking pending pick outcomes")
+    db = SessionLocal()
+    updated_creators = set()
+
+    try:
+        # Get all pending picks with a known event date in the past
+        now = datetime.now(timezone.utc)
+        pending = db.query(Pick).filter(
+            Pick.status == PickStatus.pending,
+            Pick.event_date.isnot(None),
+            Pick.event_date < now,
+            Pick.sport.isnot(None),
+        ).all()
+
+        if not pending:
+            log.info("No pending picks to resolve")
+            return
+
+        log.info("Found pending picks to resolve", count=len(pending))
+
+        # Group by sport to minimize API calls
+        picks_by_sport: dict[str, list] = {}
+        for pick in pending:
+            picks_by_sport.setdefault(pick.sport, []).append(pick)
+
+        for sport, sport_picks in picks_by_sport.items():
+            if sport not in SPORT_KEY_MAP:
+                continue
+
+            # Fetch completed games for this sport (last 3 days)
+            games = await get_completed_games(sport, days_back=3)
+            if not games:
+                continue
+
+            for pick in sport_picks:
+                game = find_matching_game(
+                    event=pick.event,
+                    pick_detail=pick.pick_detail or {},
+                    event_date=pick.event_date,
+                    games=games,
+                )
+
+                if not game:
+                    log.info("No matching game found for pick", pick_id=pick.pick_id, event=pick.event)
+                    continue
+
+                new_status = resolve_pick(pick.pick_type, pick.pick_detail or {}, game)
+
+                if new_status != PickStatus.pending:
+                    pick.status = new_status
+                    pick.outcome_resolved_at = now
+                    updated_creators.add(pick.creator_id)
+                    log.info(
+                        "Pick resolved",
+                        pick_id=pick.pick_id,
+                        event=pick.event,
+                        result=new_status,
+                    )
+
+        db.flush()
+
+        # Recompute records for any creators whose picks were resolved
+        for creator_id in updated_creators:
+            recompute_record(creator_id, db)
+
+        db.commit()
+        log.info("Outcome resolution complete", resolved=len(updated_creators))
+
+    except Exception as e:
+        log.error("Outcome resolution failed", error=str(e))
+        db.rollback()
+    finally:
+        db.close()
