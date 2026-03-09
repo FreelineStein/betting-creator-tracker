@@ -19,8 +19,7 @@ from app.models import (
     CreatorRecord,
 )
 
-# Drop and recreate for clean seed
-Base.metadata.drop_all(bind=engine)
+# Create tables if they don't exist (safe to run on existing DB)
 Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()

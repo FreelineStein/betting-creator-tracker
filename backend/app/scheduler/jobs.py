@@ -106,7 +106,36 @@ async def _scrape_creator_platform(creator, platform_config: dict, db):
                 ExtractionStatus.success if extracted_text else ExtractionStatus.needs_review
             )
 
-            # TODO: Parse extracted_text into structured Pick objects (next step)
+            # Parse extracted text into structured Pick objects
+            if extracted_text:
+                from app.pipeline.parser import parse_picks
+                from app.models import Pick, PickStatus, ExtractionMethod
+
+                parsed_picks = await parse_picks(extracted_text, source_url=post.post_url)
+                for parsed in parsed_picks:
+                    pick = Pick(
+                        source_id=source.source_id,
+                        creator_id=creator.creator_id,
+                        sport=parsed.sport,
+                        event=parsed.event,
+                        event_date=parsed.event_date,
+                        pick_type=parsed.pick_type,
+                        pick_detail=parsed.pick_detail,
+                        odds=parsed.odds,
+                        units=parsed.units,
+                        status=PickStatus.pending,
+                        extraction_method=ExtractionMethod.caption,  # Will use actual method once pipeline tracks it
+                        extraction_confidence=parsed.confidence,
+                        raw_text=parsed.raw_text,
+                    )
+                    db.add(pick)
+                    log.info(
+                        "Pick logged",
+                        creator=creator.display_name,
+                        sport=parsed.sport,
+                        pick_type=parsed.pick_type,
+                        event=parsed.event,
+                    )
 
         db.commit()
 

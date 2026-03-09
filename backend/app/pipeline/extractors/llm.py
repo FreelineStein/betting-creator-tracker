@@ -81,7 +81,7 @@ If no picks are found, return {"found": false, "picks": [], "confidence": 0.0}""
         import anthropic
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         message = await client.messages.create(
-            model="claude-haiku-3-5",
+            model="claude-haiku-4-5",
             max_tokens=1024,
             system=self.SYSTEM_PROMPT,
             messages=[{"role": "user", "content": text[:4000]}],
