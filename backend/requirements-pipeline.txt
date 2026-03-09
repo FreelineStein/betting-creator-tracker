@@ -1,0 +1,8 @@
+# Heavy ML dependencies for the extraction pipeline.
+# Install separately on the worker that runs video/audio processing.
+# NOT needed for the API server itself.
+
+yt-dlp==2024.9.27
+faster-whisper==1.0.3
+easyocr==1.7.1
+Pillow==10.4.0
