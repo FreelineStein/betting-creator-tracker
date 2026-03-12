@@ -56,8 +56,12 @@ export default async function Home() {
   if (!error && data.length > 0) {
     featuredCreators = [];
     otherCreators = [];
+    const addedIds = new Set<string>();
 
     for (const { creator, record } of data) {
+      if (addedIds.has(creator.creator_id)) continue; // Skip duplicates
+      addedIds.add(creator.creator_id);
+
       if (FEATURED_CREATOR_NAMES.includes(creator.display_name)) {
         let recentPick = null;
         try {
@@ -145,51 +149,54 @@ export default async function Home() {
                   </div>
                 </div>
 
-                {/* Recent Pick Dropdown */}
-                {recentPick && (
-                  <details className="text-sm">
-                    <summary className="cursor-pointer text-gray-300 hover:text-white font-medium">
-                      📌 Most Recent Pick
-                    </summary>
-                    <div className="mt-3 p-3 bg-gray-800/30 rounded text-gray-300 space-y-1 text-xs">
-                      <div>
-                        <span className="text-gray-500">Sport:</span> <span className="font-mono">{recentPick.sport}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Event:</span> <span className="font-mono">{recentPick.event}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Type:</span> <span className="font-mono">{recentPick.pick_type}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Status:</span>{" "}
-                        <span
-                          className={`font-bold ${
-                            recentPick.status === "won"
-                              ? "text-green-400"
-                              : recentPick.status === "lost"
-                                ? "text-red-400"
-                                : "text-yellow-400"
-                          }`}
-                        >
-                          {recentPick.status.toUpperCase()}
-                        </span>
-                      </div>
-                      {recentPick.odds && (
-                        <div>
-                          <span className="text-gray-500">Odds:</span> <span className="font-mono">{recentPick.odds}</span>
+                {/* Recent Pick Dropdown + View History Link */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    {recentPick && (
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-gray-300 hover:text-white font-medium">
+                          📌 Most Recent Pick
+                        </summary>
+                        <div className="mt-3 p-3 bg-gray-800/30 rounded text-gray-300 space-y-1 text-xs">
+                          <div>
+                            <span className="text-gray-500">Sport:</span> <span className="font-mono">{recentPick.sport}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Event:</span> <span className="font-mono">{recentPick.event}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Type:</span> <span className="font-mono">{recentPick.pick_type}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Status:</span>{" "}
+                            <span
+                              className={`font-bold ${
+                                recentPick.status === "won"
+                                  ? "text-green-400"
+                                  : recentPick.status === "lost"
+                                    ? "text-red-400"
+                                    : "text-yellow-400"
+                              }`}
+                            >
+                              {recentPick.status.toUpperCase()}
+                            </span>
+                          </div>
+                          {recentPick.odds && (
+                            <div>
+                              <span className="text-gray-500">Odds:</span> <span className="font-mono">{recentPick.odds}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </details>
-                )}
-
-                <Link
-                  href={`/creators/${creator.creator_id}`}
-                  className="inline-block mt-4 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  View full history →
-                </Link>
+                      </details>
+                    )}
+                  </div>
+                  <Link
+                    href={`/creators/${creator.creator_id}`}
+                    className="text-sm text-blue-400 hover:text-blue-300 transition-colors whitespace-nowrap"
+                  >
+                    View history →
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
