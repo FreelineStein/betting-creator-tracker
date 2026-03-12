@@ -1,6 +1,6 @@
-# Betting Creator Tracker
+# 🧾 Pick Receipts
 
-Track sports betting creators across social media. Log their picks, build a transparent W/L record, and surface tail/fade signals weighted by historical accuracy.
+Transparent W/L records for sports betting creators. Track picks across social media, build verifiable records, and identify winners vs. faders with no cherrypicking.
 
 ## Architecture
 
@@ -13,18 +13,18 @@ Track sports betting creators across social media. Log their picks, build a tran
 ## Project Structure
 
 ```
-betting-creator-tracker/
+pick-receipts/
 ├── backend/
 │   ├── app/
-│   │   ├── models/         # SQLAlchemy ORM models
-│   │   ├── api/routes/     # FastAPI route handlers
-│   │   ├── pipeline/       # Extraction pipeline + extractors
-│   │   ├── scrapers/       # Platform scraper wrappers
-│   │   └── scheduler/      # Background job definitions
-│   ├── migrations/         # Alembic DB migrations
+│   │   ├── models/         # Creator, Pick, Source, Record models
+│   │   ├── api/routes/     # /creators, /picks endpoints
+│   │   ├── pipeline/       # Extraction pipeline (caption, OCR, LLM, etc.)
+│   │   ├── scrapers/       # Instagram, Twitter, YouTube, Reddit
+│   │   └── scheduler/      # Background jobs
+│   ├── migrations/         # Database migrations
 │   ├── tests/
 │   └── main.py
-└── frontend/               # Next.js app
+└── frontend/               # Next.js + Tailwind
 ```
 
 ## Getting Started

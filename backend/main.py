@@ -17,8 +17,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Betting Creator Tracker",
-    description="Track sports betting creators and their pick history",
+    title="Pick Receipts API",
+    description="Transparent W/L records for sports betting creators",
     version="0.1.0",
     lifespan=lifespan,
 )
