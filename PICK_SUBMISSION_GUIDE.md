@@ -106,7 +106,35 @@ curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v
 
 ---
 
-## Step 4: View Picks
+## Step 4: Resolve Picks (Mark as Won/Lost)
+
+Once a game is over, update the pick's status. This is the preferred method — it's instant and doesn't use any API credits.
+
+**Mark a single pick as won:**
+```bash
+curl -X PATCH https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/PICK_ID_HERE \
+  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "won"}'
+```
+
+**Mark a pick as lost:**
+```bash
+curl -X PATCH https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/PICK_ID_HERE \
+  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "lost"}'
+```
+
+**Status options:** `won`, `lost`, `push`, `void`
+
+You can also update other fields like `event`, `event_date`, `odds`, or `pick_detail` in the same request.
+
+**After resolving picks, always recalculate the creator's record (Step 6).**
+
+---
+
+## Step 5: View Picks
 
 To see all picks for a creator:
 
@@ -122,7 +150,7 @@ curl "https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks
 
 ---
 
-## Step 5: Recalculate a Creator's Record
+## Step 6: Recalculate a Creator's Record
 
 After picks are resolved (status changed from `pending` to `won`/`lost`/`push`), recalculate the creator's W/L record:
 
@@ -137,10 +165,29 @@ curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v
 
 1. Find a tweet where a creator posted their picks
 2. Copy the tweet URL
-3. Use Step 2 to submit the tweet — picks are auto-extracted
+3. Use Step 2 to submit the tweet — picks are auto-extracted with status `pending`
 4. Check the frontend at https://pick-receipts.vercel.app to see the picks appear
-5. Once the game is played, the outcome resolver runs automatically (every 2 hours) to mark picks as won/lost
-6. The creator's record updates accordingly
+5. Once the game is over, use Step 4 to resolve each pick as `won`, `lost`, or `push`
+6. Use Step 5 to find pick IDs if needed (filter by `status=pending` to see unresolved picks)
+7. Use Step 6 to recalculate the creator's W/L record
+8. The frontend updates automatically on next page load
+
+### Quick Reference: Resolve All Pending Picks for a Creator
+
+```bash
+# 1. List pending picks
+curl "https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/?creator_id=CREATOR_ID_HERE&status=pending"
+
+# 2. For each pick_id, resolve it
+curl -X PATCH https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/PICK_ID \
+  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "won"}'
+
+# 3. Recalculate the record
+curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v1/creators/CREATOR_ID_HERE/record/recalculate \
+  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo"
+```
 
 ---
 
@@ -150,3 +197,20 @@ curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v
 - **404 Creator not found:** Run Step 1 to get the correct creator_id
 - **oEmbed failed:** The tweet URL may be invalid or the tweet may be deleted/private
 - **No picks extracted:** The LLM couldn't parse picks from the tweet text — try the manual method (Step 3) instead
+- **Picks stuck on pending:** The auto-resolver requires `event_date` to be set and Odds API credits to be available. Use Step 4 to manually resolve instead — it's faster and free
+
+---
+
+## Deleting Picks or Creators
+
+**Delete a pick:**
+```bash
+curl -X DELETE https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/PICK_ID_HERE \
+  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo"
+```
+
+**Delete a creator (and all their picks/records):**
+```bash
+curl -X DELETE https://believable-mindfulness-production-12eb.up.railway.app/api/v1/creators/CREATOR_ID_HERE \
+  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo"
+```
