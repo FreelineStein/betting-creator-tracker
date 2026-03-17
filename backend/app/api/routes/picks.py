@@ -119,3 +119,14 @@ def get_pick(request: Request, pick_id: str, db: Session = Depends(get_db)):
     if not pick:
         raise HTTPException(status_code=404, detail="Pick not found")
     return pick
+
+
+@router.delete("/{pick_id}")
+@limiter.limit("10/minute")
+def delete_pick(request: Request, pick_id: str, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
+    pick = db.query(Pick).filter(Pick.pick_id == pick_id).first()
+    if not pick:
+        raise HTTPException(status_code=404, detail="Pick not found")
+    db.delete(pick)
+    db.commit()
+    return {"status": "deleted", "pick_id": pick_id}
