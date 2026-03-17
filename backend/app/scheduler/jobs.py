@@ -15,7 +15,7 @@ scheduler = AsyncIOScheduler()
 def setup_scheduler():
     """Register all background jobs."""
     scrape_hours = getattr(settings, "scrape_interval_hours", 4)
-    resolve_hours = getattr(settings, "resolve_interval_hours", 2)
+    resolve_minutes = getattr(settings, "resolve_interval_minutes", 15)
 
     # Scrape tracked creators
     scheduler.add_job(
@@ -28,7 +28,7 @@ def setup_scheduler():
     # Resolve pending pick outcomes
     scheduler.add_job(
         resolve_pending_outcomes,
-        trigger=IntervalTrigger(hours=resolve_hours),
+        trigger=IntervalTrigger(minutes=resolve_minutes),
         id="resolve_outcomes",
         replace_existing=True,
     )
@@ -37,7 +37,7 @@ def setup_scheduler():
     log.info(
         "Scheduler started",
         scrape_interval_hours=scrape_hours,
-        resolve_interval_hours=resolve_hours,
+        resolve_interval_minutes=resolve_minutes,
     )
 
 
