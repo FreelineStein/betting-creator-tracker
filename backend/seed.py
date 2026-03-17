@@ -29,7 +29,7 @@ REAL_CREATORS = [
         ],
     },
     {
-        "display_name": "Dr. Locks",
+        "display_name": "Gavin",
         "platforms": [
             {"platform": "twitter", "handle": "@gavinmchughh", "url": "https://twitter.com/gavinmchughh"},
         ],

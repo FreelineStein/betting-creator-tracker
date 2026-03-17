@@ -56,6 +56,26 @@ def create_creator(request: Request, data: CreatorCreate, db: Session = Depends(
     return creator
 
 
+class CreatorUpdate(BaseModel):
+    display_name: Optional[str] = Field(default=None, max_length=100)
+    tier: Optional[CreatorTier] = None
+    platforms: Optional[list[dict]] = Field(default=None, max_length=10)
+    tracking_active: Optional[bool] = None
+
+
+@router.patch("/{creator_id}", response_model=CreatorResponse)
+@limiter.limit("10/minute")
+def update_creator(request: Request, creator_id: str, data: CreatorUpdate, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
+    creator = db.query(Creator).filter(Creator.creator_id == creator_id).first()
+    if not creator:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(creator, field, value)
+    db.commit()
+    db.refresh(creator)
+    return creator
+
+
 @router.get("/{creator_id}", response_model=CreatorResponse)
 @limiter.limit("60/minute")
 def get_creator(request: Request, creator_id: str, db: Session = Depends(get_db)):

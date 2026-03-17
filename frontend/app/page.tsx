@@ -10,7 +10,7 @@ const PLATFORM_ICONS: Record<string, string> = {
   reddit: "\uD83D\uDC7D",
 };
 
-const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Harry Locks", "Dr. Locks"];
+const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Harry Locks", "Gavin"];
 
 const STATUS_STYLES: Record<string, string> = {
   won: "bg-green-500/10 text-green-400 border-green-500/20",

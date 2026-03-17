@@ -27,7 +27,7 @@ This returns a list of all creators. Find the `creator_id` for the creator you n
 | Trent       | `3140d455-39ca-453c-bc36-dbbb4cb8772b` |
 | DanAI       | `8b889814-f34d-4ff2-b377-173aa012095a` |
 | Harry Locks | `254eb711-ba38-41e9-9aea-fa699892b100` |
-| Dr. Locks   | `5e27ae57-cd6b-4179-8485-acb6c914c5d8` |
+| Gavin       | `5e27ae57-cd6b-4179-8485-acb6c914c5d8` |
 
 ---
 
