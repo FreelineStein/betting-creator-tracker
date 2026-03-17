@@ -18,9 +18,27 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("Starting Betting Creator Tracker API")
+    # Run lightweight migrations for new columns
+    _run_migrations()
     setup_scheduler()
     yield
     log.info("Shutting down")
+
+
+def _run_migrations():
+    """Add any missing columns to existing tables."""
+    from sqlalchemy import text, inspect
+    from app.database import engine
+    try:
+        with engine.connect() as conn:
+            inspector = inspect(engine)
+            columns = [c["name"] for c in inspector.get_columns("creators")]
+            if "profile_image_url" not in columns:
+                conn.execute(text("ALTER TABLE creators ADD COLUMN profile_image_url VARCHAR"))
+                conn.commit()
+                log.info("Added profile_image_url column to creators")
+    except Exception as e:
+        log.warning("Migration check failed (non-fatal)", error=str(e))
 
 
 # Hide docs in production
