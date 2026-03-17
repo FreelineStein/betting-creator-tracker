@@ -136,19 +136,19 @@ export default async function Home() {
                   <div>
                     <div className="text-xs text-gray-500 uppercase">Record</div>
                     <div className="text-sm font-mono text-white">
-                      {hasRecord(record) ? `${record.wins}W-${record.losses}L` : <span className="text-gray-600 font-sans text-xs">Tracking started</span>}
+                      {hasRecord(record) ? `${record!.wins}W-${record!.losses}L` : <span className="text-gray-600 font-sans text-xs">Tracking started</span>}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500 uppercase">Win Rate</div>
                     <div>
-                      {hasRecord(record) ? <WinRateBadge rate={record.win_rate} /> : <span className="text-gray-600 text-xs">--</span>}
+                      {hasRecord(record) ? <WinRateBadge rate={record!.win_rate} /> : <span className="text-gray-600 text-xs">--</span>}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500 uppercase">ROI</div>
                     <div>
-                      {hasRecord(record) ? <ROIBadge roi={record.roi} /> : <span className="text-gray-600 text-xs">--</span>}
+                      {hasRecord(record) ? <ROIBadge roi={record!.roi} /> : <span className="text-gray-600 text-xs">--</span>}
                     </div>
                   </div>
                 </div>
@@ -242,15 +242,15 @@ export default async function Home() {
                 </div>
                 <div className="col-span-2 text-sm text-gray-300 font-mono">
                   {hasRecord(record)
-                    ? `${record.wins}W-${record.losses}L-${record.pushes}P`
+                    ? `${record!.wins}W-${record!.losses}L-${record!.pushes}P`
                     : <span className="text-gray-600 font-sans text-xs">Tracking started</span>
                   }
                 </div>
                 <div className="col-span-2">
-                  {hasRecord(record) ? <WinRateBadge rate={record.win_rate} /> : <span className="text-gray-600 text-xs">--</span>}
+                  {hasRecord(record) ? <WinRateBadge rate={record!.win_rate} /> : <span className="text-gray-600 text-xs">--</span>}
                 </div>
                 <div className="col-span-1">
-                  {hasRecord(record) ? <ROIBadge roi={record.roi} /> : <span className="text-gray-600 text-xs">--</span>}
+                  {hasRecord(record) ? <ROIBadge roi={record!.roi} /> : <span className="text-gray-600 text-xs">--</span>}
                 </div>
               </Link>
             ))}
