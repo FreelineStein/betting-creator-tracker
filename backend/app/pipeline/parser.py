@@ -19,7 +19,7 @@ from app.config import settings
 log = structlog.get_logger()
 
 # Sports we recognize
-KNOWN_SPORTS = {"NFL", "NBA", "MLB", "NHL", "CFB", "CBB", "MLS", "UFC", "NCAAF", "NCAAB", "WNBA", "PGA"}
+KNOWN_SPORTS = {"NFL", "NBA", "MLB", "NHL", "CFB", "CBB", "MLS", "UFC", "NCAAF", "NCAAB", "WNBA", "PGA", "WBC"}
 
 PARSE_PROMPT = """You are a sports betting pick extractor. Extract ALL betting picks from the text below.
 
@@ -27,8 +27,8 @@ For each pick found, return a JSON object with this exact structure:
 {
   "picks": [
     {
-      "sport": "NFL",              // Sport abbreviation. One of: NFL, NBA, MLB, NHL, CFB, CBB, MLS, UFC, NCAAF, NCAAB, PGA. Null if unknown.
-      "event": "Chiefs vs Raiders", // Team A vs Team B, or player name for props
+      "sport": "NFL",              // Sport abbreviation. MUST be one of: NFL, NBA, MLB, NHL, CFB, CBB, MLS, UFC, NCAAF, NCAAB, WNBA, PGA, WBC. Infer from team/league context if not stated explicitly.
+      "event": "Chiefs vs Raiders", // MUST be "Team A vs Team B" format. If only one team is mentioned, infer the opponent from context or use the team name alone.
       "event_date": null,          // ISO date string if mentioned (e.g. "2024-01-15"), otherwise null
       "pick_type": "spread",       // One of: spread, moneyline, over_under, prop, parlay
       "pick_detail": {             // Varies by type:
@@ -49,6 +49,8 @@ For each pick found, return a JSON object with this exact structure:
 Rules:
 - Only extract REAL picks the creator is making, not examples or historical references
 - A pick must have at minimum: pick_type and pick_detail
+- ALWAYS infer the sport. Use team names, league context, and common knowledge to determine the sport. For example: "Venezuela -1.5" during March = WBC (World Baseball Classic). College teams during March = CBB. NFL teams = NFL. Never leave sport as null if you can reasonably infer it.
+- ALWAYS try to format event as "Team A vs Team B". Use your knowledge of current matchups/schedules to infer the opponent when possible.
 - For parlays, list all legs in pick_detail.legs
 - Return {"picks": [], "no_picks_reason": "..."} if no picks found
 - Return valid JSON only, no explanation
@@ -167,6 +169,7 @@ def _fuzzy_sport(sport_str: str) -> Optional[str]:
         "FOOTBALL": "NFL", "BASKETBALL": "NBA", "BASEBALL": "MLB",
         "HOCKEY": "NHL", "COLLEGE FOOTBALL": "CFB", "COLLEGE BASKETBALL": "CBB",
         "SOCCER": "MLS", "GOLF": "PGA", "MMA": "UFC",
+        "WORLD BASEBALL CLASSIC": "WBC", "WORLD BASEBALL": "WBC",
     }
     return mappings.get(sport_str.upper())
 

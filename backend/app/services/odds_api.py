@@ -30,6 +30,7 @@ SPORT_KEY_MAP = {
     "NHL":   "icehockey_nhl",
     "MLS":   "soccer_usa_mls",
     "WNBA":  "basketball_wnba",
+    "WBC":   "baseball_wbc",
 }
 
 # Simple in-memory cache: {sport_key: (timestamp, results)}

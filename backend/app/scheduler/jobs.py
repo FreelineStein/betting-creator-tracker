@@ -196,30 +196,46 @@ async def resolve_pending_outcomes():
 
     try:
         now = datetime.now(timezone.utc)
+
+        # Get ALL pending picks — we'll handle missing sport/date gracefully
         pending = db.query(Pick).filter(
             Pick.status == PickStatus.pending,
-            Pick.event_date.isnot(None),
-            Pick.event_date < now,
-            Pick.sport.isnot(None),
         ).all()
 
         if not pending:
             log.info("No pending picks to resolve")
             return
 
+        # For picks without event_date, use logged_at as a proxy
+        # (the pick was likely for a game around the time it was posted)
+        for pick in pending:
+            if pick.event_date is None and pick.logged_at:
+                pick.event_date = pick.logged_at
+                log.info("Using logged_at as event_date fallback", pick_id=pick.pick_id)
+
+        # Filter to picks with past event dates
+        pending = [p for p in pending if p.event_date and p.event_date < now]
+
+        if not pending:
+            log.info("No pending picks with past dates to resolve")
+            return
+
         log.info("Found pending picks to resolve", count=len(pending))
 
         # Group by sport to minimize API calls
+        # For picks with no sport, try searching across all sports
         picks_by_sport: dict[str, list] = {}
+        unknown_sport_picks: list = []
         for pick in pending:
-            picks_by_sport.setdefault(pick.sport, []).append(pick)
+            if pick.sport and pick.sport in SPORT_KEY_MAP:
+                picks_by_sport.setdefault(pick.sport, []).append(pick)
+            else:
+                unknown_sport_picks.append(pick)
 
         wins = losses = pushes = 0
 
+        # Resolve picks with known sports
         for sport, sport_picks in picks_by_sport.items():
-            if sport not in SPORT_KEY_MAP:
-                continue
-
             games = await get_completed_games(sport, days_back=3)
             if not games:
                 continue
@@ -249,6 +265,42 @@ async def resolve_pending_outcomes():
                         losses += 1
                     elif new_status == PickStatus.push:
                         pushes += 1
+
+        # Resolve picks with unknown sport — search across all sports
+        if unknown_sport_picks:
+            log.info("Attempting cross-sport search for picks with unknown sport", count=len(unknown_sport_picks))
+            for pick in unknown_sport_picks:
+                for sport in SPORT_KEY_MAP:
+                    games = await get_completed_games(sport, days_back=3)
+                    if not games:
+                        continue
+
+                    game = find_matching_game(
+                        event=pick.event,
+                        pick_detail=pick.pick_detail or {},
+                        event_date=pick.event_date,
+                        games=games,
+                    )
+
+                    if game:
+                        # Found it — update the sport on the pick too
+                        pick.sport = sport
+                        new_status = resolve_pick(pick.pick_type, pick.pick_detail or {}, game)
+
+                        if new_status != PickStatus.pending:
+                            pick.status = new_status
+                            pick.outcome_resolved_at = now
+                            updated_creators.add(pick.creator_id)
+                            resolved_count += 1
+                            log.info("Resolved unknown-sport pick", pick_id=pick.pick_id, inferred_sport=sport)
+
+                            if new_status == PickStatus.won:
+                                wins += 1
+                            elif new_status == PickStatus.lost:
+                                losses += 1
+                            elif new_status == PickStatus.push:
+                                pushes += 1
+                        break  # Found the sport, stop searching
 
         db.flush()
 
