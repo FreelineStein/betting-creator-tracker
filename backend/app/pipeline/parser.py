@@ -51,7 +51,8 @@ Rules:
 - A pick must have at minimum: pick_type and pick_detail
 - ALWAYS infer the sport. Use team names, league context, and common knowledge to determine the sport. For example: "Venezuela -1.5" during March = WBC (World Baseball Classic). College teams during March = CBB. NFL teams = NFL. Never leave sport as null if you can reasonably infer it.
 - ALWAYS try to format event as "Team A vs Team B". Use your knowledge of current matchups/schedules to infer the opponent when possible.
-- For parlays, list all legs in pick_detail.legs
+- PARLAYS: If the creator posted a parlay or same game parlay (SGP), return it as ONE pick with pick_type "parlay" and ALL legs listed in pick_detail.legs. Do NOT also break out the individual legs as separate picks. A parlay is a single bet — return it as a single pick.
+- Do NOT duplicate picks. If content describes the same bet multiple times (e.g. a summary and then details), only return it once.
 - Return {"picks": [], "no_picks_reason": "..."} if no picks found
 - Return valid JSON only, no explanation
 
