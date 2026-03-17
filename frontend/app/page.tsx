@@ -12,6 +12,22 @@ const PLATFORM_ICONS: Record<string, string> = {
 
 const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Harry Locks", "Gavin"];
 
+const SPORT_ICONS: Record<string, string> = {
+  NFL: "\uD83C\uDFC8",
+  CFB: "\uD83C\uDFC8",
+  NCAAF: "\uD83C\uDFC8",
+  NBA: "\uD83C\uDFC0",
+  CBB: "\uD83C\uDFC0",
+  NCAAB: "\uD83C\uDFC0",
+  WNBA: "\uD83C\uDFC0",
+  MLB: "\u26BE",
+  WBC: "\u26BE",
+  NHL: "\uD83C\uDFD2",
+  MLS: "\u26BD",
+  UFC: "\uD83E\uDD4A",
+  PGA: "\u26F3",
+};
+
 const STATUS_STYLES: Record<string, string> = {
   won: "bg-green-500/10 text-green-400 border-green-500/20",
   lost: "bg-red-500/10 text-red-400 border-red-500/20",
@@ -192,6 +208,9 @@ export default async function Home() {
                       } hover:bg-gray-800/20 transition-colors`}
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="text-base w-6 shrink-0 text-center" title={pick.sport}>
+                          {SPORT_ICONS[pick.sport] ?? "\uD83C\uDFC6"}
+                        </div>
                         <div className="text-[11px] text-gray-600 font-mono w-12 shrink-0">
                           {formatDate(pick.event_date)}
                         </div>
@@ -200,7 +219,7 @@ export default async function Home() {
                             {formatPickDetail(pick.pick_type, pick.pick_detail)}
                           </div>
                           <div className="text-gray-600 text-xs truncate">
-                            {pick.sport} · {pick.event}
+                            {pick.event}
                           </div>
                         </div>
                       </div>
