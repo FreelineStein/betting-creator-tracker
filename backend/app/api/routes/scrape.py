@@ -91,7 +91,15 @@ async def scrape_tweets(
                 log.error("Caption parse failed", url=post.post_url, error=str(e))
                 errors.append({"url": post.post_url, "error": f"caption parse: {e}"})
 
-        # Step 2: If no picks from caption, try image extraction
+        # Filter out low-quality picks (low confidence or empty parlay legs)
+        parsed_picks = [
+            p for p in parsed_picks
+            if p.confidence >= 0.5 and not (
+                p.pick_type == "parlay" and not p.pick_detail.get("legs")
+            )
+        ]
+
+        # Step 2: If no good picks from caption, try image extraction
         if not parsed_picks:
             try:
                 image_url = await extract_image_url(post.post_url)
