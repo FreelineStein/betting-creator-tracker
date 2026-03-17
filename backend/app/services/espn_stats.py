@@ -47,7 +47,9 @@ PROP_TO_LABEL: dict[str, list[tuple[str, str, Optional[int]]]] = {
     "turnovers":   [("TO", "NBA", None)],
     "3-pointers":  [("3PT", "NBA", None)],
     "three pointers": [("3PT", "NBA", None)],
+    "three pointers made": [("3PT", "NBA", None)],
     "threes":      [("3PT", "NBA", None)],
+    "made threes": [("3PT", "NBA", None)],
     # NFL
     "passing yards":  [("YDS", "NFL", 0), ("YDS", "CFB", 0)],
     "rushing yards":  [("YDS", "NFL", 1), ("YDS", "CFB", 1)],
@@ -71,6 +73,15 @@ PROP_TO_LABEL: dict[str, list[tuple[str, str, Optional[int]]]] = {
     "runs":        [("R", "MLB", 0)],
     "strikeouts":  [("K", "MLB", None)],
     "walks":       [("BB", "MLB", None)],
+}
+
+# Combo props that require summing multiple stats
+COMBO_PROPS: dict[str, list[str]] = {
+    "pts+reb+ast":  ["PTS", "REB", "AST"],
+    "pts+reb":      ["PTS", "REB"],
+    "pts+ast":      ["PTS", "AST"],
+    "reb+ast":      ["REB", "AST"],
+    "pts+reb+ast+stl+blk": ["PTS", "REB", "AST", "STL", "BLK"],
 }
 
 
@@ -236,6 +247,22 @@ def _extract_stat(
 ) -> Optional[float]:
     """Extract a numeric stat value from the box score labels/stats arrays."""
     prop_lower = prop_name.lower()
+
+    # Check combo props first (pts+reb+ast, etc.)
+    combo_labels = COMBO_PROPS.get(prop_lower)
+    if combo_labels:
+        total = 0.0
+        found_any = False
+        for lbl in combo_labels:
+            if lbl in labels:
+                idx = labels.index(lbl)
+                if idx < len(stats):
+                    val = _parse_stat_value(stats[idx], lbl)
+                    if val is not None:
+                        total += val
+                        found_any = True
+        return total if found_any else None
+
     mappings = PROP_TO_LABEL.get(prop_lower, [])
 
     for espn_label, mapped_sport, required_cat in mappings:
