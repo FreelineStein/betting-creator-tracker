@@ -208,11 +208,11 @@ export default async function Home() {
                       } hover:bg-gray-800/20 transition-colors`}
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="text-base w-6 shrink-0 text-center" title={pick.sport}>
-                          {SPORT_ICONS[pick.sport] ?? "\uD83C\uDFC6"}
-                        </div>
                         <div className="text-[11px] text-gray-600 font-mono w-12 shrink-0">
                           {formatDate(pick.event_date)}
+                        </div>
+                        <div className="text-base w-6 shrink-0 text-center" title={pick.sport}>
+                          {SPORT_ICONS[pick.sport] ?? "\uD83C\uDFC6"}
                         </div>
                         <div className="min-w-0">
                           <div className="text-white text-sm font-medium truncate">
