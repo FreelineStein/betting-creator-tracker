@@ -203,7 +203,7 @@ export default async function Home() {
                   {recentPicks.map((pick, i) => (
                     <div
                       key={pick.pick_id}
-                      className={`px-6 py-3 flex items-center justify-between gap-4 ${
+                      className={`px-6 py-3 flex items-start justify-between gap-4 ${
                         i < recentPicks.length - 1 ? "border-b border-gray-800/40" : ""
                       } hover:bg-gray-800/20 transition-colors`}
                     >
@@ -215,12 +215,32 @@ export default async function Home() {
                           {SPORT_ICONS[pick.sport] ?? "\uD83C\uDFC6"}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-white text-sm font-medium truncate">
-                            {formatPickDetail(pick.pick_type, pick.pick_detail)}
-                          </div>
-                          <div className="text-gray-600 text-xs truncate">
-                            {pick.event}
-                          </div>
+                          {pick.pick_type === "parlay" && Array.isArray(pick.pick_detail.legs) ? (
+                            <>
+                              <div className="text-white text-sm font-medium">
+                                {pick.pick_detail.legs.length}-Leg Parlay
+                              </div>
+                              <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
+                                {(pick.pick_detail.legs as string[]).map((leg: string, j: number) => (
+                                  <div key={j} className="text-gray-400 text-xs">
+                                    {leg}
+                                  </div>
+                                ))}
+                              </div>
+                              {pick.event && (
+                                <div className="text-gray-600 text-xs mt-1">{pick.event}</div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-white text-sm font-medium truncate">
+                                {formatPickDetail(pick.pick_type, pick.pick_detail)}
+                              </div>
+                              <div className="text-gray-600 text-xs truncate">
+                                {pick.event}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">

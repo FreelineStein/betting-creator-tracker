@@ -189,8 +189,26 @@ export default async function CreatorPage({ params }: Props) {
                 <div className="col-span-2 text-gray-500 text-xs">{formatDate(pick.event_date)}</div>
                 <div className="col-span-2 text-gray-300">{pick.sport}</div>
                 <div className="col-span-4 text-white">
-                  {formatPickDetail(pick.pick_type, pick.pick_detail)}
-                  <div className="text-xs text-gray-500">{pick.event}</div>
+                  {pick.pick_type === "parlay" && Array.isArray(pick.pick_detail.legs) ? (
+                    <>
+                      <div className="font-medium">
+                        {pick.pick_detail.legs.length}-Leg Parlay
+                      </div>
+                      <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
+                        {(pick.pick_detail.legs as string[]).map((leg: string, j: number) => (
+                          <div key={j} className="text-gray-400 text-xs">{leg}</div>
+                        ))}
+                      </div>
+                      {pick.event && (
+                        <div className="text-xs text-gray-500 mt-1">{pick.event}</div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {formatPickDetail(pick.pick_type, pick.pick_detail)}
+                      <div className="text-xs text-gray-500">{pick.event}</div>
+                    </>
+                  )}
                 </div>
                 <div className="col-span-2 text-gray-300 font-mono text-xs">{pick.odds}</div>
                 <div className="col-span-2"><StatusBadge status={pick.status} /></div>
@@ -215,10 +233,26 @@ function PickRow({ pick }: { pick: Pick }) {
   return (
     <div className="bg-gray-900 border border-yellow-500/20 rounded-lg px-4 py-3 flex items-center justify-between">
       <div>
-        <div className="text-white font-medium">
-          {formatPickDetail(pick.pick_type, pick.pick_detail)}
-        </div>
-        <div className="text-gray-500 text-xs mt-0.5">{pick.sport} · {pick.event}</div>
+        {pick.pick_type === "parlay" && Array.isArray(pick.pick_detail.legs) ? (
+          <>
+            <div className="text-white font-medium">
+              {pick.pick_detail.legs.length}-Leg Parlay
+            </div>
+            <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
+              {(pick.pick_detail.legs as string[]).map((leg: string, j: number) => (
+                <div key={j} className="text-gray-400 text-xs">{leg}</div>
+              ))}
+            </div>
+            <div className="text-gray-500 text-xs mt-1">{pick.sport}{pick.event ? ` · ${pick.event}` : ""}</div>
+          </>
+        ) : (
+          <>
+            <div className="text-white font-medium">
+              {formatPickDetail(pick.pick_type, pick.pick_detail)}
+            </div>
+            <div className="text-gray-500 text-xs mt-0.5">{pick.sport} · {pick.event}</div>
+          </>
+        )}
       </div>
       <div className="flex items-center gap-3 text-sm">
         <span className="text-gray-400 font-mono">{pick.odds}</span>
