@@ -10,9 +10,11 @@ const PLATFORM_ICONS: Record<string, string> = {
   reddit: "👽",
 };
 
-function LegDot({ status }: { status: string }) {
-  if (status === "won") return <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />;
-  if (status === "lost") return <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />;
+function LegDot({ result }: { result: string }) {
+  if (result === "won") return <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />;
+  if (result === "lost") return <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />;
+  if (result === "push") return <span className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />;
+  if (result === "pending") return <span className="w-1.5 h-1.5 rounded-full bg-yellow-400/50 shrink-0" />;
   return null;
 }
 
@@ -201,12 +203,16 @@ export default async function CreatorPage({ params }: Props) {
                         {pick.pick_detail.legs.length}-Leg Parlay
                       </div>
                       <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
-                        {(pick.pick_detail.legs as string[]).map((leg: string, j: number) => (
-                          <div key={j} className="text-gray-400 text-xs flex items-center gap-1.5">
-                            <LegDot status={pick.status} />
-                            {leg}
-                          </div>
-                        ))}
+                        {pick.pick_detail.legs.map((leg: any, j: number) => {
+                          const text = typeof leg === "string" ? leg : leg.text ?? JSON.stringify(leg);
+                          const result = typeof leg === "object" ? leg.result : undefined;
+                          return (
+                            <div key={j} className="text-gray-400 text-xs flex items-center gap-1.5">
+                              {result && <LegDot result={result} />}
+                              {text}
+                            </div>
+                          );
+                        })}
                       </div>
                       {pick.event && (
                         <div className="text-xs text-gray-500 mt-1">{pick.event}</div>
@@ -248,12 +254,16 @@ function PickRow({ pick }: { pick: Pick }) {
               {pick.pick_detail.legs.length}-Leg Parlay
             </div>
             <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
-              {(pick.pick_detail.legs as string[]).map((leg: string, j: number) => (
-                <div key={j} className="text-gray-400 text-xs flex items-center gap-1.5">
-                  <LegDot status={pick.status} />
-                  {leg}
-                </div>
-              ))}
+              {pick.pick_detail.legs.map((leg: any, j: number) => {
+                const text = typeof leg === "string" ? leg : leg.text ?? JSON.stringify(leg);
+                const result = typeof leg === "object" ? leg.result : undefined;
+                return (
+                  <div key={j} className="text-gray-400 text-xs flex items-center gap-1.5">
+                    {result && <LegDot result={result} />}
+                    {text}
+                  </div>
+                );
+              })}
             </div>
             <div className="text-gray-500 text-xs mt-1">{pick.sport}{pick.event ? ` · ${pick.event}` : ""}</div>
           </>

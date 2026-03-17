@@ -36,7 +36,7 @@ For each pick found, return a JSON object with this exact structure:
         // moneyline:   {"team": "Chiefs"}
         // over_under:  {"direction": "Over", "total": "47.5"}
         // prop:        {"player": "Patrick Mahomes", "prop": "passing yards", "line": "285.5", "direction": "Over"}
-        // parlay:      {"legs": ["Chiefs -3.5", "Bills ML", "Over 47.5"]}
+        // parlay:      {"legs": [{"text": "Chiefs -3.5", "type": "spread", "detail": {"team": "Chiefs", "line": "-3.5"}, "sport": "NFL", "event": "Chiefs vs Raiders"}, ...]}
       },
       "odds": "-110",              // American odds as string (e.g. "-110", "+145"). Null if not mentioned.
       "units": 1.0,                // Units bet as float. Null if not mentioned.
@@ -52,6 +52,7 @@ Rules:
 - ALWAYS infer the sport. Use team names, league context, and common knowledge to determine the sport. For example: "Venezuela -1.5" during March = WBC (World Baseball Classic). College teams during March = CBB. NFL teams = NFL. Never leave sport as null if you can reasonably infer it.
 - ALWAYS try to format event as "Team A vs Team B". Use your knowledge of current matchups/schedules to infer the opponent when possible.
 - PARLAYS: If the creator posted a parlay or same game parlay (SGP), return it as ONE pick with pick_type "parlay" and ALL legs listed in pick_detail.legs. Do NOT also break out the individual legs as separate picks. A parlay is a single bet — return it as a single pick.
+- PARLAY LEGS must be structured objects: {"text": "human-readable description", "type": "spread|moneyline|over_under|prop", "detail": {same schema as pick_detail for that type}, "sport": "NBA", "event": "Team A vs Team B"}. The "text" field is a short human-readable summary. The "type" and "detail" fields follow the same schema as pick_detail for individual picks. Include "sport" and "event" for each leg so they can be resolved independently.
 - Do NOT duplicate picks. If content describes the same bet multiple times (e.g. a summary and then details), only return it once.
 - Return {"picks": [], "no_picks_reason": "..."} if no picks found
 - Return valid JSON only, no explanation
@@ -145,6 +146,10 @@ def _deserialize_picks(raw_picks: list[dict], original_text: str) -> list[Parsed
                 except (ValueError, TypeError):
                     units = None
 
+            # Normalize parlay legs to structured format
+            if pick_type == "parlay" and "legs" in pick_detail:
+                pick_detail["legs"] = _normalize_legs(pick_detail["legs"])
+
             results.append(ParsedPick(
                 sport=sport,
                 event=item.get("event"),
@@ -162,6 +167,37 @@ def _deserialize_picks(raw_picks: list[dict], original_text: str) -> list[Parsed
             continue
 
     return results
+
+
+def _normalize_legs(legs: list) -> list[dict]:
+    """Ensure all parlay legs are structured objects with a result field."""
+    normalized = []
+    for leg in legs:
+        if isinstance(leg, str):
+            # Legacy string format — wrap in object
+            normalized.append({"text": leg, "result": "pending"})
+        elif isinstance(leg, dict):
+            leg.setdefault("result", "pending")
+            leg.setdefault("text", _leg_text_from_detail(leg))
+            normalized.append(leg)
+        else:
+            continue
+    return normalized
+
+
+def _leg_text_from_detail(leg: dict) -> str:
+    """Generate readable text from a structured leg if text is missing."""
+    detail = leg.get("detail", {})
+    leg_type = leg.get("type", "")
+    if leg_type == "spread":
+        return f"{detail.get('team', '')} {detail.get('line', '')}"
+    if leg_type == "moneyline":
+        return f"{detail.get('team', '')} ML"
+    if leg_type == "over_under":
+        return f"{detail.get('direction', 'Over')} {detail.get('total', '')}"
+    if leg_type == "prop":
+        return f"{detail.get('player', '')} {detail.get('direction', 'Over')} {detail.get('line', '')} {detail.get('prop', '')}"
+    return leg.get("text", str(detail))
 
 
 def _fuzzy_sport(sport_str: str) -> Optional[str]:

@@ -1,8 +1,7 @@
 """
 Outcome resolver — determines if a pick won, lost, or pushed based on game scores.
 
-Handles: spread, moneyline, over/under, props
-Props are resolved via ESPN box score data. Parlays still require manual resolution.
+Handles: spread, moneyline, over/under, props, parlays (per-leg resolution)
 """
 import structlog
 from datetime import datetime
@@ -41,7 +40,7 @@ def resolve_pick(
         elif pick_type == "over_under":
             return _resolve_over_under(pick_detail, game)
         elif pick_type == "parlay":
-            log.info("Parlay needs manual resolution")
+            # Parlays are resolved per-leg via resolve_parlay_legs()
             return PickStatus.pending
         else:
             return PickStatus.pending
@@ -187,3 +186,93 @@ def _resolve_over_under(pick_detail: dict, game: GameResult) -> PickStatus:
         return PickStatus.won if combined < total else PickStatus.lost
     else:
         return PickStatus.pending
+
+
+async def resolve_parlay_legs(
+    pick_detail: dict,
+    event_date: Optional[datetime] = None,
+) -> tuple[dict, PickStatus]:
+    """
+    Resolve each leg of a parlay individually.
+    Returns (updated pick_detail with per-leg results, overall parlay status).
+    Overall: all won → won, any lost → lost, all resolved but some push → won (push legs don't kill parlays),
+    any still pending → pending.
+    """
+    from app.services.odds_api import get_completed_games, find_matching_game, SPORT_KEY_MAP
+
+    legs = pick_detail.get("legs", [])
+    if not legs:
+        return pick_detail, PickStatus.pending
+
+    # Cache games by sport to minimize API calls
+    games_cache: dict[str, list] = {}
+    any_updated = False
+
+    for leg in legs:
+        if not isinstance(leg, dict):
+            continue
+        if leg.get("result") in ("won", "lost", "push"):
+            continue  # Already resolved
+
+        leg_type = leg.get("type", "")
+        leg_detail = leg.get("detail", {})
+        leg_sport = leg.get("sport", "")
+
+        if not leg_type or not leg_detail:
+            continue
+
+        # Resolve props via ESPN
+        if leg_type == "prop":
+            if leg_sport:
+                result = await resolve_prop(leg_detail, leg_sport, event_date)
+                if result != PickStatus.pending:
+                    leg["result"] = result.value
+                    any_updated = True
+                    log.info("Parlay leg resolved (prop)", text=leg.get("text"), result=result.value)
+            continue
+
+        # Resolve spread/ML/O-U via Odds API
+        if not leg_sport or leg_sport not in SPORT_KEY_MAP:
+            continue
+
+        if leg_sport not in games_cache:
+            games_cache[leg_sport] = await get_completed_games(leg_sport, days_back=3)
+
+        games = games_cache[leg_sport]
+        if not games:
+            continue
+
+        game = find_matching_game(
+            event=leg.get("event", ""),
+            pick_detail=leg_detail,
+            event_date=event_date,
+            games=games,
+        )
+
+        if not game:
+            continue
+
+        result = resolve_pick(leg_type, leg_detail, game)
+        if result != PickStatus.pending:
+            leg["result"] = result.value
+            any_updated = True
+            log.info("Parlay leg resolved", text=leg.get("text"), result=result.value)
+
+    # Determine overall parlay status from legs
+    overall = _parlay_status_from_legs(legs)
+
+    return pick_detail, overall
+
+
+def _parlay_status_from_legs(legs: list[dict]) -> PickStatus:
+    """Determine overall parlay outcome from individual leg results."""
+    results = [leg.get("result", "pending") for leg in legs if isinstance(leg, dict)]
+    if not results:
+        return PickStatus.pending
+
+    if any(r == "lost" for r in results):
+        return PickStatus.lost
+    if all(r in ("won", "push") for r in results):
+        return PickStatus.won
+    # Some still pending
+    return PickStatus.pending

@@ -145,6 +145,56 @@ def update_pick(request: Request, pick_id: str, data: PickUpdate, db: Session = 
     return pick
 
 
+class LegUpdate(BaseModel):
+    leg_index: int
+    result: str  # "won", "lost", "push"
+
+
+@router.patch("/{pick_id}/legs")
+@limiter.limit("10/minute")
+def update_parlay_leg(
+    request: Request,
+    pick_id: str,
+    data: LegUpdate,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+):
+    """Update the result of a specific parlay leg by index."""
+    pick = db.query(Pick).filter(Pick.pick_id == pick_id).first()
+    if not pick:
+        raise HTTPException(status_code=404, detail="Pick not found")
+    if pick.pick_type != "parlay":
+        raise HTTPException(status_code=400, detail="Pick is not a parlay")
+
+    legs = (pick.pick_detail or {}).get("legs", [])
+    if data.leg_index < 0 or data.leg_index >= len(legs):
+        raise HTTPException(status_code=400, detail="Invalid leg index")
+    if data.result not in ("won", "lost", "push", "pending"):
+        raise HTTPException(status_code=400, detail="Invalid result. Must be: won, lost, push, pending")
+
+    legs[data.leg_index]["result"] = data.result
+
+    # Determine overall parlay status
+    from app.services.outcome_resolver import _parlay_status_from_legs
+    overall = _parlay_status_from_legs(legs)
+
+    pick.pick_detail = {**pick.pick_detail, "legs": legs}
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(pick, "pick_detail")
+
+    if overall != PickStatus.pending:
+        pick.status = overall
+        pick.outcome_resolved_at = datetime.now(timezone.utc)
+    elif pick.status != PickStatus.pending:
+        # If we reset a leg to pending, reset overall too
+        pick.status = PickStatus.pending
+        pick.outcome_resolved_at = None
+
+    db.commit()
+    db.refresh(pick)
+    return pick
+
+
 @router.delete("/{pick_id}")
 @limiter.limit("10/minute")
 def delete_pick(request: Request, pick_id: str, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):

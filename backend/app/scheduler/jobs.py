@@ -186,7 +186,7 @@ async def resolve_pending_outcomes():
     from app.database import SessionLocal
     from app.models import Pick, PickStatus
     from app.services.odds_api import get_completed_games, find_matching_game, SPORT_KEY_MAP
-    from app.services.outcome_resolver import resolve_pick, resolve_prop
+    from app.services.outcome_resolver import resolve_pick, resolve_prop, resolve_parlay_legs
     from app.services.record_updater import recompute_record
 
     log.info("Checking pending pick outcomes")
@@ -321,6 +321,34 @@ async def resolve_pending_outcomes():
                     updated_creators.add(pick.creator_id)
                     resolved_count += 1
                     log.info("Resolved prop pick", pick_id=pick.pick_id, status=new_status.value)
+
+                    if new_status == PickStatus.won:
+                        wins += 1
+                    elif new_status == PickStatus.lost:
+                        losses += 1
+                    elif new_status == PickStatus.push:
+                        pushes += 1
+
+        # Resolve parlay picks per-leg
+        parlay_picks = [p for p in pending if p.pick_type == "parlay" and p.status == PickStatus.pending]
+        if parlay_picks:
+            log.info("Resolving parlay picks per-leg", count=len(parlay_picks))
+            for pick in parlay_picks:
+                updated_detail, new_status = await resolve_parlay_legs(
+                    pick.pick_detail or {},
+                    pick.event_date,
+                )
+                # Always update pick_detail to persist per-leg results
+                from sqlalchemy.orm.attributes import flag_modified
+                pick.pick_detail = updated_detail
+                flag_modified(pick, "pick_detail")
+
+                if new_status != PickStatus.pending:
+                    pick.status = new_status
+                    pick.outcome_resolved_at = now
+                    updated_creators.add(pick.creator_id)
+                    resolved_count += 1
+                    log.info("Parlay resolved", pick_id=pick.pick_id, status=new_status.value)
 
                     if new_status == PickStatus.won:
                         wins += 1
