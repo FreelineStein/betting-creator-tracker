@@ -186,7 +186,7 @@ async def resolve_pending_outcomes():
     from app.database import SessionLocal
     from app.models import Pick, PickStatus
     from app.services.odds_api import get_completed_games, find_matching_game, SPORT_KEY_MAP
-    from app.services.outcome_resolver import resolve_pick
+    from app.services.outcome_resolver import resolve_pick, resolve_prop
     from app.services.record_updater import recompute_record
 
     log.info("Checking pending pick outcomes")
@@ -301,6 +301,33 @@ async def resolve_pending_outcomes():
                             elif new_status == PickStatus.push:
                                 pushes += 1
                         break  # Found the sport, stop searching
+
+        # Resolve prop picks via ESPN box scores
+        prop_picks = [p for p in pending if p.pick_type == "prop" and p.status == PickStatus.pending]
+        if prop_picks:
+            log.info("Resolving prop picks via ESPN", count=len(prop_picks))
+            for pick in prop_picks:
+                sport = pick.sport
+                if not sport:
+                    continue
+                new_status = await resolve_prop(
+                    pick.pick_detail or {},
+                    sport,
+                    pick.event_date,
+                )
+                if new_status != PickStatus.pending:
+                    pick.status = new_status
+                    pick.outcome_resolved_at = now
+                    updated_creators.add(pick.creator_id)
+                    resolved_count += 1
+                    log.info("Resolved prop pick", pick_id=pick.pick_id, status=new_status.value)
+
+                    if new_status == PickStatus.won:
+                        wins += 1
+                    elif new_status == PickStatus.lost:
+                        losses += 1
+                    elif new_status == PickStatus.push:
+                        pushes += 1
 
         db.flush()
 
