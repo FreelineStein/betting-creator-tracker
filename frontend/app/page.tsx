@@ -59,12 +59,11 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function isToday(dateStr: string | null, fallback: string): boolean {
+function isRecent(dateStr: string | null, fallback: string): boolean {
   const d = new Date(dateStr ?? fallback);
   const now = new Date();
-  return d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
+  const hoursAgo = (now.getTime() - d.getTime()) / (1000 * 60 * 60);
+  return hoursAgo < 36 && hoursAgo > -12;
 }
 
 function LegDot({ result }: { result: string }) {
@@ -150,7 +149,7 @@ export default async function Home() {
       {/* Creator Cards */}
       <div className="space-y-6">
         {creators.map(({ creator, record, picks }) => {
-          const todayPicks = picks.filter((p) => isToday(p.event_date, p.logged_at));
+          const todayPicks = picks.filter((p) => isRecent(p.event_date, p.logged_at));
           const recentPicks = todayPicks.slice(0, 5);
           const pendingPicks = todayPicks.filter((p) => p.status === "pending");
           const winRate = hasRecord(record) ? Math.round(record!.win_rate * 100) : null;
