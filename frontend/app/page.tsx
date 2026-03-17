@@ -59,6 +59,20 @@ function formatDate(dateStr: string): string {
   });
 }
 
+function isToday(dateStr: string | null, fallback: string): boolean {
+  const d = new Date(dateStr ?? fallback);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+}
+
+function LegDot({ status }: { status: string }) {
+  if (status === "won") return <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />;
+  if (status === "lost") return <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />;
+  return null;
+}
+
 function StatValue({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="text-center">
@@ -116,7 +130,7 @@ export default async function Home() {
       <div className="mb-10">
         <h1 className="text-3xl font-bold text-white tracking-tight">Pick Receipts</h1>
         <p className="text-gray-500 mt-1 text-sm">
-          Transparent W/L records for sports betting creators. No cherrypicking.
+          Today&apos;s picks from tracked creators. Transparent W/L records, no cherrypicking.
         </p>
       </div>
 
@@ -134,8 +148,9 @@ export default async function Home() {
       {/* Creator Cards */}
       <div className="space-y-6">
         {creators.map(({ creator, record, picks }) => {
-          const recentPicks = picks.slice(0, 5);
-          const pendingPicks = picks.filter((p) => p.status === "pending");
+          const todayPicks = picks.filter((p) => isToday(p.event_date, p.logged_at));
+          const recentPicks = todayPicks.slice(0, 5);
+          const pendingPicks = todayPicks.filter((p) => p.status === "pending");
           const winRate = hasRecord(record) ? Math.round(record!.win_rate * 100) : null;
           const winRateColor =
             winRate !== null && winRate >= 58 ? "text-green-400" :
@@ -209,7 +224,7 @@ export default async function Home() {
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="text-[11px] text-gray-600 font-mono w-12 shrink-0">
-                          {formatDate(pick.event_date)}
+                          {pick.event_date ? formatDate(pick.event_date) : "Today"}
                         </div>
                         <div className="text-base w-6 shrink-0 text-center" title={pick.sport}>
                           {SPORT_ICONS[pick.sport] ?? "\uD83C\uDFC6"}
@@ -222,7 +237,8 @@ export default async function Home() {
                               </div>
                               <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
                                 {(pick.pick_detail.legs as string[]).map((leg: string, j: number) => (
-                                  <div key={j} className="text-gray-400 text-xs">
+                                  <div key={j} className="text-gray-400 text-xs flex items-center gap-1.5">
+                                    <LegDot status={pick.status} />
                                     {leg}
                                   </div>
                                 ))}
@@ -253,31 +269,31 @@ export default async function Home() {
                   ))}
 
                   {/* View all link */}
-                  {picks.length > 5 && (
+                  {todayPicks.length > 5 && (
                     <div className="px-6 py-2.5 border-t border-gray-800/40">
                       <Link
                         href={`/creators/${creator.creator_id}`}
                         className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium"
                       >
-                        View all {picks.length} picks →
+                        View all {todayPicks.length} picks today →
                       </Link>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="border-t border-gray-800/60 px-6 py-6 text-center">
-                  <p className="text-gray-600 text-sm">No picks yet — tracking will begin as picks are posted.</p>
+                  <p className="text-gray-600 text-sm">No picks today.</p>
                 </div>
               )}
 
-              {/* Footer link (when ≤ 5 picks) */}
-              {recentPicks.length > 0 && picks.length <= 5 && (
+              {/* Footer link */}
+              {picks.length > 0 && (
                 <div className="px-6 py-2.5 border-t border-gray-800/40">
                   <Link
                     href={`/creators/${creator.creator_id}`}
                     className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium"
                   >
-                    Full history →
+                    Full history ({picks.length} picks) →
                   </Link>
                 </div>
               )}

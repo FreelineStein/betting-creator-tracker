@@ -10,6 +10,12 @@ const PLATFORM_ICONS: Record<string, string> = {
   reddit: "👽",
 };
 
+function LegDot({ status }: { status: string }) {
+  if (status === "won") return <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />;
+  if (status === "lost") return <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />;
+  return null;
+}
+
 function StatusBadge({ status }: { status: Pick["status"] }) {
   const styles: Record<string, string> = {
     won: "bg-green-400/10 text-green-400 border-green-400/20",
@@ -196,7 +202,10 @@ export default async function CreatorPage({ params }: Props) {
                       </div>
                       <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
                         {(pick.pick_detail.legs as string[]).map((leg: string, j: number) => (
-                          <div key={j} className="text-gray-400 text-xs">{leg}</div>
+                          <div key={j} className="text-gray-400 text-xs flex items-center gap-1.5">
+                            <LegDot status={pick.status} />
+                            {leg}
+                          </div>
                         ))}
                       </div>
                       {pick.event && (
@@ -240,7 +249,10 @@ function PickRow({ pick }: { pick: Pick }) {
             </div>
             <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
               {(pick.pick_detail.legs as string[]).map((leg: string, j: number) => (
-                <div key={j} className="text-gray-400 text-xs">{leg}</div>
+                <div key={j} className="text-gray-400 text-xs flex items-center gap-1.5">
+                  <LegDot status={pick.status} />
+                  {leg}
+                </div>
               ))}
             </div>
             <div className="text-gray-500 text-xs mt-1">{pick.sport}{pick.event ? ` · ${pick.event}` : ""}</div>
