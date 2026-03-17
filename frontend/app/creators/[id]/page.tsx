@@ -2,6 +2,22 @@ import Link from "next/link";
 import { getCreator, getCreatorRecord, getCreatorPicks } from "../../lib/api";
 import type { Pick } from "../../lib/api";
 
+const SPORT_ICONS: Record<string, string> = {
+  NFL: "\uD83C\uDFC8",
+  CFB: "\uD83C\uDFC8",
+  NCAAF: "\uD83C\uDFC8",
+  NBA: "\uD83C\uDFC0",
+  CBB: "\uD83C\uDFC0",
+  NCAAB: "\uD83C\uDFC0",
+  WNBA: "\uD83C\uDFC0",
+  MLB: "\u26BE",
+  WBC: "\u26BE",
+  NHL: "\uD83C\uDFD2",
+  MLS: "\u26BD",
+  UFC: "\uD83E\uDD4A",
+  PGA: "\u26F3",
+};
+
 const PLATFORM_ICONS: Record<string, string> = {
   twitter: "𝕏",
   instagram: "📸",
@@ -195,7 +211,7 @@ export default async function CreatorPage({ params }: Props) {
                 className="grid grid-cols-12 px-4 py-3 border-b border-gray-800 last:border-0 text-sm items-center"
               >
                 <div className="col-span-2 text-gray-500 text-xs">{formatDate(pick.event_date)}</div>
-                <div className="col-span-2 text-gray-300">{pick.sport}</div>
+                <div className="col-span-2 text-base" title={pick.sport}>{SPORT_ICONS[pick.sport] ?? pick.sport}</div>
                 <div className="col-span-4 text-white">
                   {pick.pick_type === "parlay" && Array.isArray(pick.pick_detail.legs) ? (
                     <>
