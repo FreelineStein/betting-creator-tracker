@@ -48,7 +48,7 @@ function formatPickDetail(type: string, detail: Record<string, string | number>)
   if (type === "spread") return `${detail.team} ${detail.line}`;
   if (type === "moneyline") return `${detail.team} ML`;
   if (type === "over_under") return `${detail.direction} ${detail.total}`;
-  if (type === "prop") return `${detail.player} ${detail.prop} ${detail.line}`;
+  if (type === "prop") return `${detail.player} ${detail.direction ?? "Over"} ${detail.line} ${detail.prop}`;
   return JSON.stringify(detail);
 }
 
