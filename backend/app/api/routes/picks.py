@@ -121,6 +121,30 @@ def get_pick(request: Request, pick_id: str, db: Session = Depends(get_db)):
     return pick
 
 
+class PickUpdate(BaseModel):
+    status: Optional[PickStatus] = None
+    event: Optional[str] = None
+    event_date: Optional[datetime] = None
+    odds: Optional[str] = None
+    pick_detail: Optional[Dict[str, Any]] = None
+
+
+@router.patch("/{pick_id}")
+@limiter.limit("10/minute")
+def update_pick(request: Request, pick_id: str, data: PickUpdate, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
+    pick = db.query(Pick).filter(Pick.pick_id == pick_id).first()
+    if not pick:
+        raise HTTPException(status_code=404, detail="Pick not found")
+    updates = data.model_dump(exclude_unset=True)
+    if "status" in updates and updates["status"] in (PickStatus.won, PickStatus.lost, PickStatus.push):
+        updates["outcome_resolved_at"] = datetime.now(timezone.utc)
+    for field, value in updates.items():
+        setattr(pick, field, value)
+    db.commit()
+    db.refresh(pick)
+    return pick
+
+
 @router.delete("/{pick_id}")
 @limiter.limit("10/minute")
 def delete_pick(request: Request, pick_id: str, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
