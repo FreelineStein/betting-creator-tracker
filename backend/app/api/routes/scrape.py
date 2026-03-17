@@ -27,7 +27,7 @@ class TweetSubmission(BaseModel):
 
 
 @router.post("/tweets")
-@limiter.limit("10/minute")
+@limiter.limit("30/minute")
 async def scrape_tweets(
     request: Request,
     data: TweetSubmission,
