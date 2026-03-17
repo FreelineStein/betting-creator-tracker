@@ -11,7 +11,7 @@ from app.database import get_db
 from app.models import (
     Creator, Source, Pick, ExtractionStatus, PickStatus, ExtractionMethod,
 )
-from app.scrapers.twitter import TwitterScraper
+from app.scrapers.twitter import TwitterScraper, extract_image_url, extract_text_from_image
 from app.pipeline.parser import parse_picks
 from app.api.deps import require_admin
 
@@ -77,46 +77,80 @@ async def scrape_tweets(
         db.flush()
         new_sources += 1
 
-        # For tweets, the caption IS the extracted text
+        # Step 1: Try caption text first
         extracted_text = post.caption
-        source.raw_content = extracted_text
-        source.extraction_status = (
-            ExtractionStatus.success if extracted_text else ExtractionStatus.needs_review
-        )
+        extraction_method = ExtractionMethod.caption
+        parsed_picks = []
+
         source.extraction_attempts = [{"method": "caption", "success": bool(extracted_text), "confidence": 1.0}]
 
         if extracted_text:
             try:
                 parsed_picks = await parse_picks(extracted_text, source_url=post.post_url)
-                for parsed in parsed_picks:
-                    pick = Pick(
-                        source_id=source.source_id,
-                        creator_id=creator.creator_id,
-                        sport=parsed.sport,
-                        event=parsed.event,
-                        event_date=parsed.event_date,
-                        pick_type=parsed.pick_type,
-                        pick_detail=parsed.pick_detail,
-                        odds=parsed.odds,
-                        units=parsed.units,
-                        status=PickStatus.pending,
-                        extraction_method=ExtractionMethod.caption,
-                        extraction_confidence=parsed.confidence,
-                        raw_text=parsed.raw_text,
-                    )
-                    db.add(pick)
-                    new_picks += 1
-                    pick_details.append({
-                        "sport": parsed.sport,
-                        "event": parsed.event,
-                        "pick_type": parsed.pick_type,
-                        "pick_detail": parsed.pick_detail,
-                        "odds": parsed.odds,
-                        "confidence": parsed.confidence,
-                    })
             except Exception as e:
-                log.error("Parse failed", url=post.post_url, error=str(e))
-                errors.append({"url": post.post_url, "error": str(e)})
+                log.error("Caption parse failed", url=post.post_url, error=str(e))
+                errors.append({"url": post.post_url, "error": f"caption parse: {e}"})
+
+        # Step 2: If no picks from caption, try image extraction
+        if not parsed_picks:
+            try:
+                image_url = await extract_image_url(post.post_url)
+                if image_url:
+                    log.info("No picks in caption, trying image", url=post.post_url)
+                    image_text = await extract_text_from_image(image_url)
+                    source.extraction_attempts.append({
+                        "method": "image_vision",
+                        "success": bool(image_text),
+                        "confidence": 0.85,
+                        "image_url": image_url,
+                    })
+
+                    if image_text:
+                        extracted_text = image_text
+                        extraction_method = ExtractionMethod.ocr
+                        try:
+                            parsed_picks = await parse_picks(image_text, source_url=post.post_url)
+                        except Exception as e:
+                            log.error("Image parse failed", url=post.post_url, error=str(e))
+                            errors.append({"url": post.post_url, "error": f"image parse: {e}"})
+            except Exception as e:
+                log.error("Image extraction failed", url=post.post_url, error=str(e))
+
+        source.raw_content = extracted_text
+        source.extraction_status = (
+            ExtractionStatus.success if parsed_picks else
+            ExtractionStatus.needs_review if extracted_text else
+            ExtractionStatus.failed
+        )
+
+        # Step 3: Store parsed picks
+        for parsed in parsed_picks:
+            pick = Pick(
+                source_id=source.source_id,
+                creator_id=creator.creator_id,
+                sport=parsed.sport,
+                event=parsed.event,
+                event_date=parsed.event_date,
+                pick_type=parsed.pick_type,
+                pick_detail=parsed.pick_detail,
+                odds=parsed.odds,
+                units=parsed.units,
+                status=PickStatus.pending,
+                extraction_method=extraction_method,
+                extraction_confidence=parsed.confidence,
+                raw_text=parsed.raw_text,
+            )
+            db.add(pick)
+            new_picks += 1
+            pick_details.append({
+                "source": extraction_method.value,
+                "sport": parsed.sport,
+                "event": parsed.event,
+                "pick_type": parsed.pick_type,
+                "pick_detail": parsed.pick_detail,
+                "odds": parsed.odds,
+                "confidence": parsed.confidence,
+            })
 
     db.commit()
 

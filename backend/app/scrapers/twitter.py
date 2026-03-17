@@ -113,3 +113,108 @@ def _extract_handle_from_url(author_url: str) -> Optional[str]:
         return None
     match = re.search(r"twitter\.com/(\w+)", author_url)
     return f"@{match.group(1)}" if match else None
+
+
+async def extract_image_url(tweet_url: str) -> Optional[str]:
+    """
+    Extract the image URL from a tweet using fxtwitter.com (open-source Twitter embed proxy).
+    Falls back to direct x.com/twitter.com if fxtwitter fails.
+    Returns the image URL or None if no image found.
+    """
+    # Extract the path from the tweet URL
+    path_match = re.search(r"(?:twitter\.com|x\.com)(/\w+/status/\d+)", tweet_url)
+    if not path_match:
+        return None
+
+    path = path_match.group(1)
+    sources = [
+        f"https://fxtwitter.com{path}",
+        f"https://vxtwitter.com{path}",
+    ]
+
+    for source_url in sources:
+        try:
+            async with httpx.AsyncClient(
+                timeout=15,
+                follow_redirects=True,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)"},
+            ) as client:
+                resp = await client.get(source_url)
+                if resp.status_code != 200:
+                    continue
+                html = resp.text
+
+            # Try og:image first, then twitter:image
+            for pattern in [
+                r'<meta\s+property=["\']og:image["\']\s+content=["\']([^"\']+)["\']',
+                r'<meta\s+content=["\']([^"\']+)["\']\s+property=["\']og:image["\']',
+                r'<meta\s+name=["\']twitter:image["\']\s+content=["\']([^"\']+)["\']',
+                r'<meta\s+content=["\']([^"\']+)["\']\s+name=["\']twitter:image["\']',
+            ]:
+                match = re.search(pattern, html, re.IGNORECASE)
+                if match:
+                    image_url = unescape(match.group(1))
+                    # Filter out profile images and default cards
+                    if "profile_images" in image_url or "card_img" in image_url:
+                        continue
+                    log.info("Extracted image URL from tweet", url=tweet_url, image_url=image_url[:120])
+                    return image_url
+
+        except Exception as e:
+            log.warning("Image extraction source failed", source=source_url, error=str(e))
+            continue
+
+    log.info("No image found in tweet", url=tweet_url)
+    return None
+
+
+async def extract_text_from_image(image_url: str) -> Optional[str]:
+    """
+    Use Claude vision to extract text from a tweet image.
+    Designed for betting pick screenshots, bet slips, etc.
+    """
+    from app.config import settings
+
+    if not settings.anthropic_api_key:
+        log.warning("No Anthropic API key — cannot extract text from image")
+        return None
+
+    try:
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+        message = await client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1024,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "url",
+                            "url": image_url,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "Extract ALL text from this image exactly as written. "
+                            "This is likely a sports betting pick or bet slip. "
+                            "Include team names, spreads, lines, odds, player names, "
+                            "prop bets, and any other betting-related information. "
+                            "Return ONLY the extracted text, nothing else."
+                        ),
+                    },
+                ],
+            }],
+        )
+
+        extracted = message.content[0].text.strip()
+        if extracted:
+            log.info("Extracted text from image", text_len=len(extracted))
+        return extracted if extracted else None
+
+    except Exception as e:
+        log.error("Image text extraction failed", error=str(e))
+        return None
