@@ -2,14 +2,14 @@ import Link from "next/link";
 import { getAllCreatorsWithRecords, getCreatorPicks } from "./lib/api";
 
 const PLATFORM_ICONS: Record<string, string> = {
-  twitter: "𝕏",
-  instagram: "📸",
-  youtube: "▶️",
-  tiktok: "🎵",
-  reddit: "👽",
+  twitter: "\u{1D54F}",
+  instagram: "\uD83D\uDCF8",
+  youtube: "\u25B6\uFE0F",
+  tiktok: "\uD83C\uDFB5",
+  reddit: "\uD83D\uDC7D",
 };
 
-const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Harry Locks", "Dr. Locks", "Biggy"];
+const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Harry Locks", "Dr. Locks"];
 
 function WinRateBadge({ rate }: { rate: number }) {
   const pct = Math.round(rate * 100);
@@ -37,6 +37,10 @@ interface CreatorWithPicks {
   creator: any;
   record: any;
   recentPick: any;
+}
+
+function hasRecord(record: { total_picks: number } | null): boolean {
+  return record !== null && record.total_picks > 0;
 }
 
 export default async function Home() {
@@ -88,13 +92,13 @@ export default async function Home() {
 
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 text-red-300 text-sm">
-          ⚠️ Could not connect to API. Make sure the backend is running on{" "}
+          Could not connect to API. Make sure the backend is running on{" "}
           <code className="font-mono">localhost:8000</code>.
         </div>
       )}
 
       {!error && data.length === 0 && (
-        <div className="text-gray-500 text-sm">No creators found. Run the seed script to populate data.</div>
+        <div className="text-gray-500 text-sm">No creators found.</div>
       )}
 
       {/* Featured Creators Grid */}
@@ -132,19 +136,19 @@ export default async function Home() {
                   <div>
                     <div className="text-xs text-gray-500 uppercase">Record</div>
                     <div className="text-sm font-mono text-white">
-                      {record ? `${record.wins}W-${record.losses}L` : "—"}
+                      {hasRecord(record) ? `${record.wins}W-${record.losses}L` : <span className="text-gray-600 font-sans text-xs">Tracking started</span>}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500 uppercase">Win Rate</div>
                     <div>
-                      {record ? <WinRateBadge rate={record.win_rate} /> : <span className="text-gray-600">—</span>}
+                      {hasRecord(record) ? <WinRateBadge rate={record.win_rate} /> : <span className="text-gray-600 text-xs">--</span>}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500 uppercase">ROI</div>
                     <div>
-                      {record ? <ROIBadge roi={record.roi} /> : <span className="text-gray-600">—</span>}
+                      {hasRecord(record) ? <ROIBadge roi={record.roi} /> : <span className="text-gray-600 text-xs">--</span>}
                     </div>
                   </div>
                 </div>
@@ -237,13 +241,16 @@ export default async function Home() {
                   ))}
                 </div>
                 <div className="col-span-2 text-sm text-gray-300 font-mono">
-                  {record ? `${record.wins}W-${record.losses}L-${record.pushes}P` : "—"}
+                  {hasRecord(record)
+                    ? `${record.wins}W-${record.losses}L-${record.pushes}P`
+                    : <span className="text-gray-600 font-sans text-xs">Tracking started</span>
+                  }
                 </div>
                 <div className="col-span-2">
-                  {record ? <WinRateBadge rate={record.win_rate} /> : <span className="text-gray-600">—</span>}
+                  {hasRecord(record) ? <WinRateBadge rate={record.win_rate} /> : <span className="text-gray-600 text-xs">--</span>}
                 </div>
                 <div className="col-span-1">
-                  {record ? <ROIBadge roi={record.roi} /> : <span className="text-gray-600">—</span>}
+                  {hasRecord(record) ? <ROIBadge roi={record.roi} /> : <span className="text-gray-600 text-xs">--</span>}
                 </div>
               </Link>
             ))}
@@ -251,9 +258,37 @@ export default async function Home() {
         </div>
       )}
 
-      <p className="text-xs text-gray-600 mt-6">
-        Records updated automatically. Picks sourced from public social media posts.
+      <p className="text-xs text-gray-600 mt-4">
+        Picks sourced from public social media posts. Records update as outcomes are resolved.
       </p>
+
+      {/* How it works */}
+      <div className="mt-12 border-t border-gray-800 pt-8">
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">How it works</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+            <div className="text-white font-medium mb-1">1. Capture picks</div>
+            <p className="text-gray-500">
+              Picks are pulled from creators' public social media posts and extracted using AI.
+            </p>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+            <div className="text-white font-medium mb-1">2. Verify outcomes</div>
+            <p className="text-gray-500">
+              Game scores are checked automatically against real results from official sports data.
+            </p>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+            <div className="text-white font-medium mb-1">3. Build the record</div>
+            <p className="text-gray-500">
+              W/L records and ROI are calculated transparently. ROI is measured against the -110 break-even line (52.4%).
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-600 mt-4">
+          For entertainment and transparency purposes only. Not financial advice.
+        </p>
+      </div>
     </div>
   );
 }

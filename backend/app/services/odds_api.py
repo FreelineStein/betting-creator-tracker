@@ -2,8 +2,8 @@
 The Odds API client — fetches completed game scores for outcome resolution.
 Docs: https://the-odds-api.com/liveapi/guides/v4/
 
-Free tier: 500 requests/month. We only call this for sports that have pending picks,
-so real-world usage will be well under the limit.
+Free tier: 500 requests/month. Budget is tracked via odds_api_budget.py.
+Results are cached for 30 minutes to avoid redundant calls.
 """
 import httpx
 import structlog
@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from app.config import settings
+from app.services.odds_api_budget import check_budget, record_request
 
 log = structlog.get_logger()
 
@@ -21,6 +22,7 @@ BASE_URL = "https://api.the-odds-api.com/v4"
 SPORT_KEY_MAP = {
     "NFL":   "americanfootball_nfl",
     "CFB":   "americanfootball_ncaaf",
+    "NCAAF": "americanfootball_ncaaf",
     "NBA":   "basketball_nba",
     "CBB":   "basketball_ncaab",
     "NCAAB": "basketball_ncaab",
@@ -29,6 +31,10 @@ SPORT_KEY_MAP = {
     "MLS":   "soccer_usa_mls",
     "WNBA":  "basketball_wnba",
 }
+
+# Simple in-memory cache: {sport_key: (timestamp, results)}
+_cache: dict[str, tuple[datetime, list]] = {}
+CACHE_TTL = timedelta(minutes=30)
 
 
 @dataclass
@@ -46,7 +52,7 @@ class GameResult:
 async def get_completed_games(sport: str, days_back: int = 3) -> list[GameResult]:
     """
     Fetch recently completed games for a sport.
-    days_back: how many days of history to fetch (free tier supports up to 3 days)
+    Uses cache to avoid burning through the free tier budget.
     """
     sport_key = SPORT_KEY_MAP.get(sport.upper())
     if not sport_key:
@@ -55,6 +61,18 @@ async def get_completed_games(sport: str, days_back: int = 3) -> list[GameResult
 
     if not settings.the_odds_api_key:
         log.warning("THE_ODDS_API_KEY not configured — skipping outcome resolution")
+        return []
+
+    # Check cache first
+    now = datetime.now(timezone.utc)
+    if sport_key in _cache:
+        cached_at, cached_results = _cache[sport_key]
+        if now - cached_at < CACHE_TTL:
+            log.info("Using cached game results", sport=sport, count=len(cached_results))
+            return cached_results
+
+    # Check budget before making a request
+    if not check_budget():
         return []
 
     try:
@@ -68,6 +86,8 @@ async def get_completed_games(sport: str, days_back: int = 3) -> list[GameResult
             )
             resp.raise_for_status()
             games_data = resp.json()
+
+        record_request()
 
         results = []
         for game in games_data:
@@ -94,6 +114,9 @@ async def get_completed_games(sport: str, days_back: int = 3) -> list[GameResult
                 ),
             ))
 
+        # Cache results
+        _cache[sport_key] = (now, results)
+
         log.info("Fetched completed games", sport=sport, count=len(results))
         return results
 
@@ -109,36 +132,61 @@ def find_matching_game(
     games: list[GameResult],
 ) -> Optional[GameResult]:
     """
-    Fuzzy-match a pick's event string to a completed game.
-    Checks if team names from the pick appear in the game's home/away teams.
+    Match a pick's event string to a completed game.
+    Uses team name matching with date filtering.
     """
     if not games:
         return None
 
-    # Extract team name candidates from the pick
-    team_candidates = set()
+    # Extract team name from pick detail
+    pick_team = (pick_detail.get("team") or "").lower().strip()
 
-    if team := pick_detail.get("team"):
-        team_candidates.add(team.lower())
-
+    # Extract team names from event string ("Chiefs vs Raiders")
+    event_teams = set()
     if event:
-        # "Chiefs vs Raiders" → ["Chiefs", "Raiders"]
-        for part in event.replace(" vs ", " ").replace(" @ ", " ").split():
-            if len(part) > 3:
-                team_candidates.add(part.lower())
+        for part in event.replace(" vs ", "|").replace(" @ ", "|").replace(" vs. ", "|").split("|"):
+            cleaned = part.strip().lower()
+            if cleaned:
+                event_teams.add(cleaned)
 
-    for game in games:
+    # Filter games by date first (±24h)
+    date_filtered = games
+    if event_date:
+        date_filtered = [
+            g for g in games
+            if abs((g.commence_time - event_date).total_seconds()) <= 86400
+        ]
+
+    matches = []
+    for game in date_filtered:
         home = game.home_team.lower()
         away = game.away_team.lower()
 
-        # Check if any candidate team name appears in home or away team names
-        for candidate in team_candidates:
-            if candidate in home or candidate in away:
-                # If we have a date, sanity check it's within 24h
-                if event_date:
-                    diff = abs((game.commence_time - event_date).total_seconds())
-                    if diff > 86400:  # More than 24h apart
-                        continue
-                return game
+        # Try exact match on full team name first
+        if pick_team and (pick_team == home or pick_team == away):
+            return game
+
+        # Try if pick team is contained in full team name (e.g., "Chiefs" in "Kansas City Chiefs")
+        if pick_team and (pick_team in home or pick_team in away):
+            matches.append(game)
+            continue
+
+        # Try matching event teams
+        for et in event_teams:
+            if et in home or et in away or home in et or away in et:
+                matches.append(game)
+                break
+
+    if len(matches) == 1:
+        return matches[0]
+
+    if len(matches) > 1:
+        log.warning(
+            "Ambiguous game match — multiple games matched, marking for review",
+            event=event,
+            pick_team=pick_team,
+            match_count=len(matches),
+        )
+        return None
 
     return None

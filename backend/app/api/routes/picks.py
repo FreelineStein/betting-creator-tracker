@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel
 import uuid
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.database import get_db
 from app.models import Pick, PickStatus, PickType, ExtractionMethod, Creator, Source
 from app.models.source import Platform, PostType, ExtractionStatus
+from app.api.deps import require_admin
 
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/picks", tags=["picks"])
 
 
@@ -46,18 +50,17 @@ class PickResponse(BaseModel):
 
 
 @router.post("/", response_model=PickResponse, status_code=201)
-def create_pick(data: PickCreate, db: Session = Depends(get_db)):
-    # Verify creator exists
+@limiter.limit("10/minute")
+def create_pick(request: Request, data: PickCreate, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
     creator = db.query(Creator).filter(Creator.creator_id == data.creator_id).first()
     if not creator:
         raise HTTPException(status_code=404, detail="Creator not found")
-    
-    # Create a source entry for this pick (manual entry)
+
     source = Source(
         source_id=str(uuid.uuid4()),
         creator_id=data.creator_id,
-        platform=Platform.reddit,  # Use reddit as default for manual entries
-        post_type=PostType.comment,  # Use comment as default for manual entries
+        platform=Platform.reddit,
+        post_type=PostType.comment,
         post_url="",
         posted_at=datetime.now(timezone.utc),
         raw_content=data.raw_text or "",
@@ -66,8 +69,7 @@ def create_pick(data: PickCreate, db: Session = Depends(get_db)):
     )
     db.add(source)
     db.flush()
-    
-    # Create the pick
+
     pick = Pick(
         pick_id=str(uuid.uuid4()),
         source_id=source.source_id,
@@ -91,7 +93,9 @@ def create_pick(data: PickCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/")
+@limiter.limit("60/minute")
 def list_picks(
+    request: Request,
     creator_id: Optional[str] = None,
     sport: Optional[str] = None,
     status: Optional[PickStatus] = None,
@@ -105,11 +109,12 @@ def list_picks(
         query = query.filter(Pick.sport == sport)
     if status:
         query = query.filter(Pick.status == status)
-    return query.order_by(Pick.logged_at.desc()).limit(limit).all()
+    return query.order_by(Pick.logged_at.desc()).limit(min(limit, 100)).all()
 
 
 @router.get("/{pick_id}")
-def get_pick(pick_id: str, db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+def get_pick(request: Request, pick_id: str, db: Session = Depends(get_db)):
     pick = db.query(Pick).filter(Pick.pick_id == pick_id).first()
     if not pick:
         raise HTTPException(status_code=404, detail="Pick not found")

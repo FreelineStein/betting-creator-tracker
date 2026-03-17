@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     # Odds/Sports
     the_odds_api_key: Optional[str] = None
 
+    # Security
+    admin_api_key: Optional[str] = None
+    allowed_origins: str = "http://localhost:3000"
+
+    # Scheduler
+    scrape_interval_hours: int = 4
+    resolve_interval_hours: int = 2
+
     # App
     environment: str = "development"
     log_level: str = "INFO"

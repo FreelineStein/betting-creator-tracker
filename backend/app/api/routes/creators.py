@@ -1,18 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, timezone
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.database import get_db
 from app.models import Creator, CreatorTier, CreatorRecord, Pick, PickStatus
+from app.api.deps import require_admin
 
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/creators", tags=["creators"])
 
 
 class CreatorCreate(BaseModel):
-    display_name: str
+    display_name: str = Field(max_length=100)
     tier: CreatorTier = CreatorTier.tracked
-    platforms: list[dict] = []
+    platforms: list[dict] = Field(default=[], max_length=10)
 
 
 class CreatorResponse(BaseModel):
@@ -27,7 +31,9 @@ class CreatorResponse(BaseModel):
 
 
 @router.get("/", response_model=list[CreatorResponse])
+@limiter.limit("60/minute")
 def list_creators(
+    request: Request,
     tier: Optional[CreatorTier] = None,
     active_only: bool = True,
     db: Session = Depends(get_db),
@@ -41,7 +47,8 @@ def list_creators(
 
 
 @router.post("/", response_model=CreatorResponse, status_code=201)
-def create_creator(data: CreatorCreate, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def create_creator(request: Request, data: CreatorCreate, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
     creator = Creator(**data.model_dump())
     db.add(creator)
     db.commit()
@@ -50,7 +57,8 @@ def create_creator(data: CreatorCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{creator_id}", response_model=CreatorResponse)
-def get_creator(creator_id: str, db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+def get_creator(request: Request, creator_id: str, db: Session = Depends(get_db)):
     creator = db.query(Creator).filter(Creator.creator_id == creator_id).first()
     if not creator:
         raise HTTPException(status_code=404, detail="Creator not found")
@@ -62,19 +70,17 @@ def calculate_creator_record(creator_id: str, db: Session):
     creator = db.query(Creator).filter(Creator.creator_id == creator_id).first()
     if not creator:
         raise HTTPException(status_code=404, detail="Creator not found")
-    
+
     picks = db.query(Pick).filter(Pick.creator_id == creator_id).all()
-    
-    # Calculate stats
+
     wins = len([p for p in picks if p.status == PickStatus.won])
     losses = len([p for p in picks if p.status == PickStatus.lost])
     pushes = len([p for p in picks if p.status == PickStatus.push])
     total = len(picks)
-    
+
     win_rate = wins / (wins + losses) if (wins + losses) > 0 else 0
-    roi = (win_rate - 0.524) * 100  # simplified ROI
-    
-    # Group by sport
+    roi = (win_rate - 0.524) * 100
+
     accuracy_by_sport = {}
     for pick in picks:
         sport = pick.sport or "Unknown"
@@ -84,8 +90,7 @@ def calculate_creator_record(creator_id: str, db: Session):
             accuracy_by_sport[sport]["wins"] += 1
         elif pick.status == PickStatus.lost:
             accuracy_by_sport[sport]["losses"] += 1
-    
-    # Create or update record
+
     record = db.query(CreatorRecord).filter(CreatorRecord.creator_id == creator_id).first()
     if record:
         record.total_picks = total
@@ -109,23 +114,24 @@ def calculate_creator_record(creator_id: str, db: Session):
             last_updated=datetime.now(timezone.utc),
         )
         db.add(record)
-    
+
     db.commit()
     db.refresh(record)
     return record
 
 
 @router.get("/{creator_id}/record")
-def get_creator_record(creator_id: str, db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+def get_creator_record(request: Request, creator_id: str, db: Session = Depends(get_db)):
     record = db.query(CreatorRecord).filter(CreatorRecord.creator_id == creator_id).first()
     if not record:
-        # Auto-calculate if doesn't exist
         record = calculate_creator_record(creator_id, db)
     return record
 
 
 @router.post("/{creator_id}/record/recalculate")
-def recalculate_creator_record(creator_id: str, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def recalculate_creator_record(request: Request, creator_id: str, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
     """Recalculate W/L record based on picks."""
     record = calculate_creator_record(creator_id, db)
     return {"status": "success", "record": record}

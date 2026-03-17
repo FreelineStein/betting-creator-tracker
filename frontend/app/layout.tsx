@@ -13,6 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <nav className="border-b border-gray-800 px-6 py-4">
           <div className="max-w-5xl mx-auto flex items-center gap-2">
             <span className="text-blue-400 font-bold text-lg">🧾 Pick Receipts</span>
+            <span className="text-gray-500 text-sm ml-2">Transparent betting creator records</span>
           </div>
         </nav>
         <main className="max-w-5xl mx-auto px-6 py-8">{children}</main>

@@ -5,6 +5,7 @@ APScheduler keeps it simple for now. Migrate to Celery when needed.
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from app.config import settings
 
 log = structlog.get_logger()
 
@@ -13,25 +14,42 @@ scheduler = AsyncIOScheduler()
 
 def setup_scheduler():
     """Register all background jobs."""
+    scrape_hours = getattr(settings, "scrape_interval_hours", 4)
+    resolve_hours = getattr(settings, "resolve_interval_hours", 2)
 
-    # Scrape tracked creators every 2 hours
+    # Scrape tracked creators
     scheduler.add_job(
         scrape_all_creators,
-        trigger=IntervalTrigger(hours=2),
+        trigger=IntervalTrigger(hours=scrape_hours),
         id="scrape_creators",
         replace_existing=True,
     )
 
-    # Resolve pending pick outcomes every 30 minutes
+    # Resolve pending pick outcomes
     scheduler.add_job(
         resolve_pending_outcomes,
-        trigger=IntervalTrigger(minutes=30),
+        trigger=IntervalTrigger(hours=resolve_hours),
         id="resolve_outcomes",
         replace_existing=True,
     )
 
     scheduler.start()
-    log.info("Scheduler started")
+    log.info(
+        "Scheduler started",
+        scrape_interval_hours=scrape_hours,
+        resolve_interval_hours=resolve_hours,
+    )
+
+
+def _get_extraction_method(attempts: list[dict]):
+    """Determine which extractor actually succeeded from the attempts log."""
+    from app.models import ExtractionMethod
+    for attempt in attempts:
+        if attempt.get("success") and attempt.get("confidence", 0) >= 0.6:
+            method_name = attempt.get("method", "caption")
+            if method_name in ExtractionMethod.__members__:
+                return ExtractionMethod(method_name)
+    return ExtractionMethod.caption
 
 
 async def scrape_all_creators():
@@ -65,6 +83,15 @@ async def _scrape_creator_platform(creator, platform_config: dict, db):
     if not platform or not handle:
         return
 
+    # Skip platforms without automated scraping (e.g., Twitter uses oEmbed via manual URL submission)
+    if platform == "twitter":
+        log.info("Skipping Twitter — uses manual URL submission via /scrape/tweets", creator=creator.display_name)
+        return
+
+    if platform == "instagram":
+        log.warning("Instagram scraping not available — skipping", creator=creator.display_name)
+        return
+
     scraper_cls = SCRAPER_MAP.get(platform)
     if not scraper_cls:
         log.warning("No scraper for platform", platform=platform)
@@ -73,6 +100,9 @@ async def _scrape_creator_platform(creator, platform_config: dict, db):
     try:
         scraper = scraper_cls()
         posts = await scraper.fetch_recent_posts(handle)
+
+        posts_found = len(posts)
+        picks_extracted = 0
 
         for post in posts:
             # Skip if already scraped
@@ -109,7 +139,7 @@ async def _scrape_creator_platform(creator, platform_config: dict, db):
             # Parse extracted text into structured Pick objects
             if extracted_text:
                 from app.pipeline.parser import parse_picks
-                from app.models import Pick, PickStatus, ExtractionMethod
+                from app.models import Pick, PickStatus
 
                 parsed_picks = await parse_picks(extracted_text, source_url=post.post_url)
                 for parsed in parsed_picks:
@@ -124,29 +154,35 @@ async def _scrape_creator_platform(creator, platform_config: dict, db):
                         odds=parsed.odds,
                         units=parsed.units,
                         status=PickStatus.pending,
-                        extraction_method=ExtractionMethod.caption,  # Will use actual method once pipeline tracks it
+                        extraction_method=_get_extraction_method(attempts),
                         extraction_confidence=parsed.confidence,
                         raw_text=parsed.raw_text,
                     )
                     db.add(pick)
-                    log.info(
-                        "Pick logged",
-                        creator=creator.display_name,
-                        sport=parsed.sport,
-                        pick_type=parsed.pick_type,
-                        event=parsed.event,
-                    )
+                    picks_extracted += 1
 
         db.commit()
+        log.info(
+            "SCRAPE_COMPLETE",
+            creator=creator.display_name,
+            platform=platform,
+            posts_found=posts_found,
+            picks_extracted=picks_extracted,
+        )
 
     except Exception as e:
-        log.error("Scrape failed", creator=creator.display_name, platform=platform, error=str(e))
+        log.error(
+            "SCRAPER_FAILURE",
+            creator=creator.display_name,
+            platform=platform,
+            error=str(e),
+        )
         db.rollback()
 
 
 async def resolve_pending_outcomes():
     """Check game results and update Pick statuses."""
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timezone
     from app.database import SessionLocal
     from app.models import Pick, PickStatus
     from app.services.odds_api import get_completed_games, find_matching_game, SPORT_KEY_MAP
@@ -156,9 +192,9 @@ async def resolve_pending_outcomes():
     log.info("Checking pending pick outcomes")
     db = SessionLocal()
     updated_creators = set()
+    resolved_count = 0
 
     try:
-        # Get all pending picks with a known event date in the past
         now = datetime.now(timezone.utc)
         pending = db.query(Pick).filter(
             Pick.status == PickStatus.pending,
@@ -178,11 +214,12 @@ async def resolve_pending_outcomes():
         for pick in pending:
             picks_by_sport.setdefault(pick.sport, []).append(pick)
 
+        wins = losses = pushes = 0
+
         for sport, sport_picks in picks_by_sport.items():
             if sport not in SPORT_KEY_MAP:
                 continue
 
-            # Fetch completed games for this sport (last 3 days)
             games = await get_completed_games(sport, days_back=3)
             if not games:
                 continue
@@ -196,7 +233,6 @@ async def resolve_pending_outcomes():
                 )
 
                 if not game:
-                    log.info("No matching game found for pick", pick_id=pick.pick_id, event=pick.event)
                     continue
 
                 new_status = resolve_pick(pick.pick_type, pick.pick_detail or {}, game)
@@ -205,21 +241,28 @@ async def resolve_pending_outcomes():
                     pick.status = new_status
                     pick.outcome_resolved_at = now
                     updated_creators.add(pick.creator_id)
-                    log.info(
-                        "Pick resolved",
-                        pick_id=pick.pick_id,
-                        event=pick.event,
-                        result=new_status,
-                    )
+                    resolved_count += 1
+
+                    if new_status == PickStatus.won:
+                        wins += 1
+                    elif new_status == PickStatus.lost:
+                        losses += 1
+                    elif new_status == PickStatus.push:
+                        pushes += 1
 
         db.flush()
 
-        # Recompute records for any creators whose picks were resolved
         for creator_id in updated_creators:
             recompute_record(creator_id, db)
 
         db.commit()
-        log.info("Outcome resolution complete", resolved=len(updated_creators))
+        log.info(
+            "RESOLUTION_COMPLETE",
+            picks_resolved=resolved_count,
+            wins=wins,
+            losses=losses,
+            pushes=pushes,
+        )
 
     except Exception as e:
         log.error("Outcome resolution failed", error=str(e))

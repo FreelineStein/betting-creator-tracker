@@ -57,6 +57,7 @@ export default async function CreatorPage({ params }: Props) {
     );
   }
 
+  const hasPicks = record.total_picks > 0;
   const winRatePct = Math.round(record.win_rate * 100);
   const winRateColor =
     winRatePct >= 58 ? "text-green-400" :
@@ -64,7 +65,7 @@ export default async function CreatorPage({ params }: Props) {
     "text-red-400";
 
   // Sport breakdown
-  const sports = Object.entries(record.accuracy_by_sport).sort(
+  const sports = Object.entries(record.accuracy_by_sport || {}).sort(
     ([, a], [, b]) => (b.wins + b.losses) - (a.wins + a.losses)
   );
 
@@ -100,28 +101,34 @@ export default async function CreatorPage({ params }: Props) {
       </div>
 
       {/* Record card */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-          <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Record</div>
-          <div className="text-white font-bold text-lg font-mono">
-            {record.wins}W-{record.losses}L-{record.pushes}P
+      {hasPicks ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
+            <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Record</div>
+            <div className="text-white font-bold text-lg font-mono">
+              {record.wins}W-{record.losses}L-{record.pushes}P
+            </div>
+          </div>
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
+            <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Win Rate</div>
+            <div className={`font-bold text-2xl ${winRateColor}`}>{winRatePct}%</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
+            <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">ROI</div>
+            <div className={`font-bold text-2xl ${record.roi >= 0 ? "text-green-400" : "text-red-400"}`}>
+              {record.roi >= 0 ? "+" : ""}{record.roi}%
+            </div>
+          </div>
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
+            <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Total Picks</div>
+            <div className="text-white font-bold text-2xl">{record.total_picks}</div>
           </div>
         </div>
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-          <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Win Rate</div>
-          <div className={`font-bold text-2xl ${winRateColor}`}>{winRatePct}%</div>
+      ) : (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-8 text-center">
+          <p className="text-gray-400">Tracking started — picks will appear as they're posted.</p>
         </div>
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-          <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">ROI</div>
-          <div className={`font-bold text-2xl ${record.roi >= 0 ? "text-green-400" : "text-red-400"}`}>
-            {record.roi >= 0 ? "+" : ""}{record.roi}%
-          </div>
-        </div>
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-          <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Total Picks</div>
-          <div className="text-white font-bold text-2xl">{record.total_picks}</div>
-        </div>
-      </div>
+      )}
 
       {/* Sport breakdown */}
       {sports.length > 0 && (
