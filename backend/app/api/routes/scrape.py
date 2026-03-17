@@ -57,8 +57,14 @@ async def scrape_tweets(
     for post in posts:
         existing = db.query(Source).filter(Source.post_url == post.post_url).first()
         if existing:
-            skipped_existing += 1
-            continue
+            # If the source exists but produced no picks, delete it and re-process
+            existing_picks = db.query(Pick).filter(Pick.source_id == existing.source_id).count()
+            if existing_picks > 0:
+                skipped_existing += 1
+                continue
+            log.info("Re-processing source with zero picks", url=post.post_url)
+            db.delete(existing)
+            db.flush()
 
         source = Source(
             creator_id=creator.creator_id,
