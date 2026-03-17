@@ -21,6 +21,7 @@ class Creator(Base):
     # e.g. [{"platform": "instagram", "handle": "@user", "url": "https://..."}]
     platforms = Column(JSON, default=list)
 
+    profile_image_url = Column(String, nullable=True)
     tracking_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

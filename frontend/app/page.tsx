@@ -167,9 +167,17 @@ export default async function Home() {
               {/* Creator Header */}
               <div className="px-6 pt-5 pb-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
-                    {creator.display_name.charAt(0)}
-                  </div>
+                  {creator.profile_image_url ? (
+                    <img
+                      src={creator.profile_image_url}
+                      alt={creator.display_name}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                      {creator.display_name.charAt(0)}
+                    </div>
+                  )}
                   <div>
                     <h2 className="text-white font-semibold text-lg leading-tight">{creator.display_name}</h2>
                     <div className="flex gap-2 mt-0.5">

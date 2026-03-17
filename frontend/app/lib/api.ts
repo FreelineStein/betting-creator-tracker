@@ -8,6 +8,7 @@ export interface Creator {
   display_name: string;
   tier: string;
   platforms: { platform: string; handle: string; url: string }[];
+  profile_image_url: string | null;
   tracking_active: boolean;
 }
 

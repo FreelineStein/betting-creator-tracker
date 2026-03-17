@@ -24,6 +24,7 @@ class CreatorResponse(BaseModel):
     display_name: str
     tier: str
     platforms: list
+    profile_image_url: Optional[str] = None
     tracking_active: bool
 
     class Config:
@@ -60,6 +61,7 @@ class CreatorUpdate(BaseModel):
     display_name: Optional[str] = Field(default=None, max_length=100)
     tier: Optional[CreatorTier] = None
     platforms: Optional[list[dict]] = Field(default=None, max_length=10)
+    profile_image_url: Optional[str] = None
     tracking_active: Optional[bool] = None
 
 

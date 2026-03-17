@@ -105,7 +105,19 @@ export default async function CreatorPage({ params }: Props) {
 
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
-        <div>
+        <div className="flex items-center gap-4">
+          {creator.profile_image_url ? (
+            <img
+              src={creator.profile_image_url}
+              alt={creator.display_name}
+              className="w-14 h-14 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl">
+              {creator.display_name.charAt(0)}
+            </div>
+          )}
+          <div>
           <h1 className="text-3xl font-bold text-white">{creator.display_name}</h1>
           <div className="flex gap-2 mt-2">
             {creator.platforms.map((p) => (
@@ -120,6 +132,7 @@ export default async function CreatorPage({ params }: Props) {
                 <span>{p.handle}</span>
               </a>
             ))}
+          </div>
           </div>
         </div>
       </div>
