@@ -2,7 +2,7 @@ import { getAllCreatorsWithRecords, getCreatorPicks } from "./lib/api";
 import type { Pick } from "./lib/api";
 import CreatorCards from "./components/CreatorCards";
 
-const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Harry Locks", "Gavin"];
+const FEATURED_CREATOR_NAMES = ["Gavin", "Trent", "DanAI", "Harry Locks"];
 
 export default async function Home() {
   let data: Awaited<ReturnType<typeof getAllCreatorsWithRecords>> = [];
@@ -34,6 +34,12 @@ export default async function Home() {
       }
       creators.push({ creator, record, picks });
     }
+
+    // Sort by FEATURED_CREATOR_NAMES order
+    creators.sort((a, b) =>
+      FEATURED_CREATOR_NAMES.indexOf(a.creator.display_name) -
+      FEATURED_CREATOR_NAMES.indexOf(b.creator.display_name)
+    );
   }
 
   return (
