@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from app.database import get_db
-from app.models import Creator, CreatorTier, CreatorRecord, Pick, PickStatus
+from app.models import Creator, CreatorTier, CreatorRecord, Pick, PickStatus, Source
 from app.api.deps import require_admin
 
 limiter = Limiter(key_func=get_remote_address)
@@ -127,6 +127,22 @@ def get_creator_record(request: Request, creator_id: str, db: Session = Depends(
     if not record:
         record = calculate_creator_record(creator_id, db)
     return record
+
+
+@router.delete("/{creator_id}")
+@limiter.limit("10/minute")
+def delete_creator(request: Request, creator_id: str, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
+    creator = db.query(Creator).filter(Creator.creator_id == creator_id).first()
+    if not creator:
+        raise HTTPException(status_code=404, detail="Creator not found")
+
+    picks = db.query(Pick).filter(Pick.creator_id == creator_id).delete()
+    sources = db.query(Source).filter(Source.creator_id == creator_id).delete()
+    records = db.query(CreatorRecord).filter(CreatorRecord.creator_id == creator_id).delete()
+    db.delete(creator)
+    db.commit()
+
+    return {"status": "deleted", "display_name": creator.display_name, "deleted_picks": picks, "deleted_sources": sources}
 
 
 @router.post("/{creator_id}/record/recalculate")
