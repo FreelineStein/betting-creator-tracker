@@ -140,7 +140,7 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
                   </div>
                 )}
                 <div>
-                  <h2 className="font-display font-black text-xl tracking-display leading-none text-white">
+                  <h2 className="font-sans font-bold text-xl leading-none text-white">
                     {creator.display_name}
                   </h2>
                   <div className="flex gap-2 mt-1.5">

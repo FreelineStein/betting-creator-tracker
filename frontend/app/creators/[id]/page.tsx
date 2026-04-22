@@ -123,7 +123,7 @@ export default async function CreatorPage({ params }: Props) {
             </div>
           )}
           <div>
-            <h1 className="font-display font-black text-4xl tracking-display leading-none text-white">
+            <h1 className="font-sans font-bold text-3xl leading-none text-white">
               {creator.display_name}
             </h1>
             <div className="flex gap-3 mt-3">
