@@ -28,9 +28,14 @@ export const metadata: Metadata = {
   title: "PickReceipts",
   description:
     "Every pick. Every loss. On the record. PickReceipts tracks sports betting influencers across their public channels and holds them accountable with verified win/loss records.",
-  icons: {
-    icon: "/favicon.png",
-  },
+  icons: [
+    {
+      rel: "icon",
+      type: "image/png",
+      sizes: "32x32",
+      url: "/favicon.png",
+    },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
