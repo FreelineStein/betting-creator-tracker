@@ -1,21 +1,22 @@
 import Link from "next/link";
 import { getCreator, getCreatorRecord, getCreatorPicks } from "../../lib/api";
 import type { Pick } from "../../lib/api";
+import { Badge, StatCard, WLRecord } from "../../../components/brand";
 
 const SPORT_ICONS: Record<string, string> = {
-  NFL: "\uD83C\uDFC8",
-  CFB: "\uD83C\uDFC8",
-  NCAAF: "\uD83C\uDFC8",
-  NBA: "\uD83C\uDFC0",
-  CBB: "\uD83C\uDFC0",
-  NCAAB: "\uD83C\uDFC0",
-  WNBA: "\uD83C\uDFC0",
-  MLB: "\u26BE",
-  WBC: "\u26BE",
-  NHL: "\uD83C\uDFD2",
-  MLS: "\u26BD",
-  UFC: "\uD83E\uDD4A",
-  PGA: "\u26F3",
+  NFL: "🏈",
+  CFB: "🏈",
+  NCAAF: "🏈",
+  NBA: "🏀",
+  CBB: "🏀",
+  NCAAB: "🏀",
+  WNBA: "🏀",
+  MLB: "⚾",
+  WBC: "⚾",
+  NHL: "🏒",
+  MLS: "⚽",
+  UFC: "🥊",
+  PGA: "⛳",
 };
 
 const PLATFORM_ICONS: Record<string, string> = {
@@ -27,23 +28,19 @@ const PLATFORM_ICONS: Record<string, string> = {
 };
 
 function LegDot({ result }: { result: string }) {
-  if (result === "won") return <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />;
-  if (result === "lost") return <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />;
-  if (result === "push") return <span className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />;
-  if (result === "pending") return <span className="w-1.5 h-1.5 rounded-full bg-yellow-400/50 shrink-0" />;
+  if (result === "won") return <span className="w-1.5 h-1.5 rounded-full bg-signal shrink-0" />;
+  if (result === "lost") return <span className="w-1.5 h-1.5 rounded-full bg-alert shrink-0" />;
+  if (result === "push") return <span className="w-1.5 h-1.5 rounded-full bg-ink-400 shrink-0" />;
+  if (result === "pending") return <span className="w-1.5 h-1.5 rounded-full bg-white/40 shrink-0" />;
   return null;
 }
 
 function StatusBadge({ status }: { status: Pick["status"] }) {
-  const styles: Record<string, string> = {
-    won: "bg-green-400/10 text-green-400 border-green-400/20",
-    lost: "bg-red-400/10 text-red-400 border-red-400/20",
-    pending: "bg-yellow-400/10 text-yellow-400 border-yellow-400/20",
-    push: "bg-gray-400/10 text-gray-400 border-gray-400/20",
-    void: "bg-gray-700 text-gray-500 border-gray-600",
-  };
+  if (status === "won") return <Badge variant="win">won</Badge>;
+  if (status === "lost") return <Badge variant="loss">lost</Badge>;
+  if (status === "push") return <Badge variant="push">push</Badge>;
   return (
-    <span className={`px-2 py-0.5 rounded border text-xs font-semibold uppercase ${styles[status] ?? ""}`}>
+    <span className="inline-flex items-center gap-1 rounded-full bg-ink-800/60 text-ink-400 px-2.5 py-1 text-xs font-bold uppercase tracking-label">
       {status}
     </span>
   );
@@ -59,8 +56,16 @@ function formatPickDetail(type: string, detail: Record<string, string | number>)
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
+}
+
+function winRateTone(pct: number): "win" | "loss" | "default" {
+  if (pct >= 58) return "win";
+  if (pct < 52) return "loss";
+  return "default";
 }
 
 type Props = { params: { id: string } };
@@ -75,7 +80,7 @@ export default async function CreatorPage({ params }: Props) {
     ]);
   } catch {
     return (
-      <div className="text-red-400">
+      <div className="bg-alert-dim border border-alert/40 rounded-xl p-4 text-alert-deep text-sm">
         Could not load creator. Make sure the backend is running.
       </div>
     );
@@ -83,14 +88,10 @@ export default async function CreatorPage({ params }: Props) {
 
   const hasPicks = record.total_picks > 0;
   const winRatePct = Math.round(record.win_rate * 100);
-  const winRateColor =
-    winRatePct >= 58 ? "text-green-400" :
-    winRatePct >= 52 ? "text-yellow-400" :
-    "text-red-400";
+  const wrTone = winRateTone(winRatePct);
 
-  // Sport breakdown
   const sports = Object.entries(record.accuracy_by_sport || {}).sort(
-    ([, a], [, b]) => (b.wins + b.losses) - (a.wins + a.losses)
+    ([, a], [, b]) => b.wins + b.losses - (a.wins + a.losses)
   );
 
   const pendingPicks = picks.filter((p) => p.status === "pending");
@@ -98,8 +99,11 @@ export default async function CreatorPage({ params }: Props) {
 
   return (
     <div>
-      {/* Back */}
-      <Link href="/" className="text-gray-500 text-sm hover:text-gray-300 transition-colors mb-6 inline-block">
+      {/* Back link */}
+      <Link
+        href="/"
+        className="font-mono text-[11px] uppercase tracking-label text-ink-400 hover:text-signal transition-colors mb-6 inline-block"
+      >
         ← Leaderboard
       </Link>
 
@@ -107,80 +111,83 @@ export default async function CreatorPage({ params }: Props) {
       <div className="flex items-start justify-between mb-8">
         <div className="flex items-center gap-4">
           {creator.profile_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={creator.profile_image_url}
               alt={creator.display_name}
               className="w-14 h-14 rounded-full object-cover"
             />
           ) : (
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl">
+            <div className="w-14 h-14 rounded-full bg-ink-800 border border-ink-800 flex items-center justify-center text-signal font-display font-black text-2xl">
               {creator.display_name.charAt(0)}
             </div>
           )}
           <div>
-          <h1 className="text-3xl font-bold text-white">{creator.display_name}</h1>
-          <div className="flex gap-2 mt-2">
-            {creator.platforms.map((p) => (
-              <a
-                key={p.platform}
-                href={p.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                <span>{PLATFORM_ICONS[p.platform] ?? "🔗"}</span>
-                <span>{p.handle}</span>
-              </a>
-            ))}
-          </div>
+            <h1 className="font-display font-black text-4xl tracking-display leading-none text-white">
+              {creator.display_name}
+            </h1>
+            <div className="flex gap-3 mt-3">
+              {creator.platforms.map((p) => (
+                <a
+                  key={p.platform}
+                  href={p.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-[11px] text-ink-400 hover:text-signal transition-colors"
+                >
+                  {PLATFORM_ICONS[p.platform] ?? "🔗"} {p.handle}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Record card */}
+      {/* Record cards */}
       {hasPicks ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-            <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Record</div>
-            <div className="text-white font-bold text-lg font-mono">
-              {record.wins}W-{record.losses}L-{record.pushes}P
-            </div>
-          </div>
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-            <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Win Rate</div>
-            <div className={`font-bold text-2xl ${winRateColor}`}>{winRatePct}%</div>
-          </div>
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-            <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">ROI</div>
-            <div className={`font-bold text-2xl ${record.roi >= 0 ? "text-green-400" : "text-red-400"}`}>
-              {record.roi >= 0 ? "+" : ""}{record.roi}%
-            </div>
-          </div>
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-            <div className="text-gray-500 text-xs uppercase tracking-wider mb-1">Total Picks</div>
-            <div className="text-white font-bold text-2xl">{record.total_picks}</div>
-          </div>
+          <StatCard
+            label="Record"
+            value={<WLRecord w={record.wins} l={record.losses} size="lg" />}
+            sub={record.pushes > 0 ? `${record.pushes} push${record.pushes === 1 ? "" : "es"}` : undefined}
+          />
+          <StatCard label="Win Rate" value={`${winRatePct}%`} tone={wrTone} sub="Verified picks" />
+          <StatCard
+            label="ROI"
+            value={`${record.roi >= 0 ? "+" : ""}${record.roi}%`}
+            tone={record.roi >= 0 ? "win" : "loss"}
+            sub="vs −110 break-even"
+          />
+          <StatCard label="Total Picks" value={record.total_picks} sub="All-time tracked" />
         </div>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-8 text-center">
-          <p className="text-gray-400">Tracking started — picks will appear as they're posted.</p>
+        <div className="bg-ink-800/30 border border-ink-800 rounded-xl p-6 mb-8 text-center">
+          <p className="text-ink-400">Tracking started — picks will appear as they&apos;re posted.</p>
         </div>
       )}
 
       {/* Sport breakdown */}
       {sports.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">By Sport</h2>
+          <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-3">
+            By Sport
+          </div>
           <div className="flex flex-wrap gap-3">
             {sports.map(([sport, stats]) => {
               const total = stats.wins + stats.losses;
               const wr = total > 0 ? Math.round((stats.wins / total) * 100) : 0;
-              const color = wr >= 58 ? "text-green-400" : wr >= 52 ? "text-yellow-400" : "text-red-400";
+              const wrColor =
+                wr >= 58 ? "text-signal" : wr >= 52 ? "text-ink-400" : "text-alert";
               return (
-                <div key={sport} className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 flex items-center gap-3">
-                  <span className="text-white text-sm font-semibold">{sport}</span>
-                  <span className="text-gray-500 text-xs font-mono">{stats.wins}W-{stats.losses}L</span>
-                  <span className={`text-xs font-bold ${color}`}>{wr}%</span>
+                <div
+                  key={sport}
+                  className="bg-ink-800/30 border border-ink-800 rounded-lg px-4 py-2 flex items-center gap-3"
+                >
+                  <span className="font-display font-black text-sm tracking-display text-white">
+                    {sport}
+                  </span>
+                  <WLRecord w={stats.wins} l={stats.losses} size="sm" />
+                  <span className={`font-mono tabular text-xs font-bold ${wrColor}`}>{wr}%</span>
                 </div>
               );
             })}
@@ -191,9 +198,10 @@ export default async function CreatorPage({ params }: Props) {
       {/* Pending picks */}
       {pendingPicks.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-semibold text-yellow-400 uppercase tracking-wider mb-3">
-            🟡 Active Picks ({pendingPicks.length})
-          </h2>
+          <div className="font-mono text-[10px] uppercase tracking-label text-white mb-3 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            Active Picks ({pendingPicks.length})
+          </div>
           <div className="space-y-2">
             {pendingPicks.map((pick) => (
               <PickRow key={pick.pick_id} pick={pick} />
@@ -204,14 +212,14 @@ export default async function CreatorPage({ params }: Props) {
 
       {/* Pick history */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+        <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-3">
           Pick History
-        </h2>
+        </div>
         {resolvedPicks.length === 0 ? (
-          <p className="text-gray-600 text-sm">No resolved picks yet.</p>
+          <p className="text-ink-600 text-sm">No resolved picks yet.</p>
         ) : (
-          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-            <div className="grid grid-cols-12 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-800">
+          <div className="bg-ink-800/30 rounded-xl border border-ink-800 overflow-hidden">
+            <div className="grid grid-cols-12 px-4 py-2 font-mono text-[10px] uppercase tracking-label text-ink-400 border-b border-ink-800">
               <div className="col-span-2">Date</div>
               <div className="col-span-2">Sport</div>
               <div className="col-span-4">Pick</div>
@@ -221,22 +229,26 @@ export default async function CreatorPage({ params }: Props) {
             {resolvedPicks.map((pick) => (
               <div
                 key={pick.pick_id}
-                className="grid grid-cols-12 px-4 py-3 border-b border-gray-800 last:border-0 text-sm items-center"
+                className="grid grid-cols-12 px-4 py-3 border-b border-ink-800/60 last:border-0 text-sm items-center"
               >
-                <div className="col-span-2 text-gray-500 text-xs">{formatDate(pick.event_date)}</div>
-                <div className="col-span-2 text-base" title={pick.sport}>{SPORT_ICONS[pick.sport] ?? pick.sport}</div>
+                <div className="col-span-2 font-mono text-xs text-ink-400">
+                  {formatDate(pick.event_date)}
+                </div>
+                <div className="col-span-2 text-base" title={pick.sport}>
+                  {SPORT_ICONS[pick.sport] ?? pick.sport}
+                </div>
                 <div className="col-span-4 text-white">
                   {pick.pick_type === "parlay" && Array.isArray(pick.pick_detail.legs) ? (
                     <>
-                      <div className="font-medium">
+                      <div className="font-semibold">
                         {pick.pick_detail.legs.length}-Leg Parlay
                       </div>
-                      <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
+                      <div className="mt-1 space-y-0.5 pl-3 border-l border-ink-800">
                         {pick.pick_detail.legs.map((leg: any, j: number) => {
                           const text = typeof leg === "string" ? leg : leg.text ?? JSON.stringify(leg);
                           const result = typeof leg === "object" ? leg.result : undefined;
                           return (
-                            <div key={j} className="text-gray-400 text-xs flex items-center gap-1.5">
+                            <div key={j} className="text-ink-400 text-xs flex items-center gap-1.5">
                               {result && <LegDot result={result} />}
                               {text}
                             </div>
@@ -244,18 +256,22 @@ export default async function CreatorPage({ params }: Props) {
                         })}
                       </div>
                       {pick.event && (
-                        <div className="text-xs text-gray-500 mt-1">{pick.event}</div>
+                        <div className="text-xs text-ink-600 mt-1">{pick.event}</div>
                       )}
                     </>
                   ) : (
                     <>
                       {formatPickDetail(pick.pick_type, pick.pick_detail)}
-                      <div className="text-xs text-gray-500">{pick.event}</div>
+                      <div className="text-xs text-ink-600">{pick.event}</div>
                     </>
                   )}
                 </div>
-                <div className="col-span-2 text-gray-300 font-mono text-xs">{pick.odds}</div>
-                <div className="col-span-2"><StatusBadge status={pick.status} /></div>
+                <div className="col-span-2 font-mono tabular text-xs text-ink-400">
+                  {pick.odds}
+                </div>
+                <div className="col-span-2">
+                  <StatusBadge status={pick.status} />
+                </div>
               </div>
             ))}
           </div>
@@ -275,39 +291,44 @@ function PickRow({ pick }: { pick: Pick }) {
   }
 
   return (
-    <div className="bg-gray-900 border border-yellow-500/20 rounded-lg px-4 py-3 flex items-center justify-between">
+    <div className="bg-ink-800/30 border border-ink-800 rounded-lg px-4 py-3 flex items-center justify-between">
       <div>
         {pick.pick_type === "parlay" && Array.isArray(pick.pick_detail.legs) ? (
           <>
-            <div className="text-white font-medium">
+            <div className="text-white font-semibold">
               {pick.pick_detail.legs.length}-Leg Parlay
             </div>
-            <div className="mt-1 space-y-0.5 pl-3 border-l border-gray-700/50">
+            <div className="mt-1 space-y-0.5 pl-3 border-l border-ink-800">
               {pick.pick_detail.legs.map((leg: any, j: number) => {
                 const text = typeof leg === "string" ? leg : leg.text ?? JSON.stringify(leg);
                 const result = typeof leg === "object" ? leg.result : undefined;
                 return (
-                  <div key={j} className="text-gray-400 text-xs flex items-center gap-1.5">
+                  <div key={j} className="text-ink-400 text-xs flex items-center gap-1.5">
                     {result && <LegDot result={result} />}
                     {text}
                   </div>
                 );
               })}
             </div>
-            <div className="text-gray-500 text-xs mt-1">{pick.sport}{pick.event ? ` · ${pick.event}` : ""}</div>
+            <div className="text-ink-600 text-xs mt-1">
+              {pick.sport}
+              {pick.event ? ` · ${pick.event}` : ""}
+            </div>
           </>
         ) : (
           <>
-            <div className="text-white font-medium">
+            <div className="text-white font-semibold">
               {formatPickDetail(pick.pick_type, pick.pick_detail)}
             </div>
-            <div className="text-gray-500 text-xs mt-0.5">{pick.sport} · {pick.event}</div>
+            <div className="text-ink-600 text-xs mt-0.5">
+              {pick.sport} · {pick.event}
+            </div>
           </>
         )}
       </div>
       <div className="flex items-center gap-3 text-sm">
-        <span className="text-gray-400 font-mono">{pick.odds}</span>
-        <span className="text-yellow-400 text-xs font-semibold uppercase">Pending</span>
+        <span className="font-mono tabular text-ink-400">{pick.odds}</span>
+        <span className="font-mono text-[10px] uppercase tracking-label text-white">Pending</span>
       </div>
     </div>
   );

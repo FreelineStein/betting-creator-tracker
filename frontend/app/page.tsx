@@ -14,7 +14,6 @@ export default async function Home() {
     error = true;
   }
 
-  // Build creator cards with picks
   const creators: { creator: any; record: any; picks: Pick[] }[] = [];
 
   if (!error && data.length > 0) {
@@ -35,7 +34,6 @@ export default async function Home() {
       creators.push({ creator, record, picks });
     }
 
-    // Sort by FEATURED_CREATOR_NAMES order
     creators.sort((a, b) =>
       FEATURED_CREATOR_NAMES.indexOf(a.creator.display_name) -
       FEATURED_CREATOR_NAMES.indexOf(b.creator.display_name)
@@ -45,55 +43,78 @@ export default async function Home() {
   return (
     <div>
       {/* Hero */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold text-white tracking-tight">Pick Receipts</h1>
-        <p className="text-gray-500 mt-1 text-sm">
-          Today&apos;s picks from tracked creators. Transparent W/L records, no cherrypicking.
+      <div className="mb-12">
+        <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-3">
+          Transparent Betting Records
+        </div>
+        <h1 className="font-display font-black text-5xl sm:text-6xl tracking-display leading-none text-white">
+          Every pick.{" "}
+          <span className="text-signal">Every loss.</span>{" "}
+          On the record.
+        </h1>
+        <p className="text-ink-400 mt-4 max-w-xl">
+          Your favorite creator&apos;s publicly posted picks. We surface the data — wins, losses, and everything in between — so you can decide who&apos;s worth tailing.
         </p>
       </div>
 
       {error && (
-        <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-4 text-red-400 text-sm">
+        <div className="bg-alert-dim border border-alert/40 rounded-xl p-4 text-alert-deep text-sm">
           Could not connect to API. Make sure the backend is running on{" "}
-          <code className="font-mono bg-red-900/30 px-1.5 py-0.5 rounded">localhost:8000</code>.
+          <code className="font-mono bg-alert/10 px-1.5 py-0.5 rounded text-alert">
+            localhost:8000
+          </code>
+          .
         </div>
       )}
 
       {!error && creators.length === 0 && (
-        <div className="text-gray-600 text-sm">No creators found.</div>
+        <div className="text-ink-600 text-sm">No creators found.</div>
       )}
 
       {!error && creators.length > 0 && <CreatorCards creators={creators} />}
 
-      {/* Footer */}
-      <p className="text-xs text-gray-600 mt-8">
+      <p className="text-xs text-ink-600 mt-8">
         Picks sourced from public social media posts. Records update as outcomes are resolved.
       </p>
 
       {/* How it works */}
-      <div className="mt-12 border-t border-gray-800 pt-8">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">How it works</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <div className="text-white font-medium mb-1">1. Capture picks</div>
-            <p className="text-gray-500">
-              Picks are pulled from creators&apos; public social media posts and extracted using AI.
-            </p>
-          </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <div className="text-white font-medium mb-1">2. Verify outcomes</div>
-            <p className="text-gray-500">
-              Game scores are checked automatically against real results from official sports data.
-            </p>
-          </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <div className="text-white font-medium mb-1">3. Build the record</div>
-            <p className="text-gray-500">
-              W/L records and ROI are calculated transparently. ROI is measured against the -110 break-even line (52.4%).
-            </p>
-          </div>
+      <div className="mt-12 border-t border-ink-800 pt-8">
+        <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-4">
+          How it works
         </div>
-        <p className="text-xs text-gray-600 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+          {[
+            {
+              n: "01",
+              title: "Capture picks",
+              body: "Picks are pulled from creators' public social media posts and extracted using AI.",
+            },
+            {
+              n: "02",
+              title: "Verify outcomes",
+              body: "Game scores are checked automatically against real results from official sports data.",
+            },
+            {
+              n: "03",
+              title: "Build the record",
+              body: "W/L records and ROI are calculated transparently. ROI is measured against the −110 break-even line (52.4%).",
+            },
+          ].map((step) => (
+            <div
+              key={step.n}
+              className="rounded-xl border border-ink-800 bg-ink-800/30 p-5"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-label text-signal mb-2">
+                {step.n}
+              </div>
+              <div className="font-display font-black text-lg tracking-display text-white mb-1">
+                {step.title}
+              </div>
+              <p className="text-ink-400 leading-relaxed">{step.body}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-ink-600 mt-6">
           For entertainment and transparency purposes only. Not financial advice.
         </p>
       </div>

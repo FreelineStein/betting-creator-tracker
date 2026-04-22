@@ -1,3 +1,32 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --signal: #7AE53C;
+  --signal-dim: rgba(122, 229, 60, 0.12);
+  --forest: #3D8A12;
+  --pitch: #0A0A0A;
+  --alert: #E85D30;
+  --alert-dim: rgba(232, 93, 48, 0.10);
+  --alert-deep: #B84420;
+  --paper: #F7F7F5;
+  --ink-100: #F2F2F2;
+  --ink-200: #E0E0E0;
+  --ink-400: #A0A0A0;
+  --ink-600: #555555;
+  --ink-800: #222222;
+}
+
+html, body {
+  background: var(--pitch);
+  color: #fff;
+  font-family: var(--font-barlow), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* Tabular numerals on stats — keeps record/percent columns aligned */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

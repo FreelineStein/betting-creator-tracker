@@ -20,3 +20,13 @@ out/
 
 # Logs
 *.log
+
+# Gmail OAuth credentials (never commit)
+backend/scripts/credentials.json
+backend/scripts/token.json
+
+# Local secret env files
+*.env.secrets
+
+# TypeScript incremental build cache
+*.tsbuildinfo
