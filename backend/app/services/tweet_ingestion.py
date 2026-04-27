@@ -13,6 +13,7 @@ picks attached, we report "already_tracked" so callers can surface that to
 the user. If a Source exists with zero picks (a prior failed extraction),
 we delete it and retry — same behavior the scrape route had inline.
 """
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -40,6 +41,48 @@ MIN_PICK_CONFIDENCE = 0.5
 # If the parser returns one of these as `event` (or as part of it) we treat it
 # as a placeholder and trigger opponent lookup against The Odds API.
 _PLACEHOLDER_TOKENS = {"opponent", "tbd", "unknown", "other", "n/a"}
+
+# PrizePicks/Underdog/Sleeper "fantasy score" props use a points formula that
+# varies by book. We can't resolve them reliably, so we reject the whole
+# submission rather than log picks that will sit pending forever.
+# Word-boundary on "FS" so we don't false-positive on words like "Faceoffs".
+_FANTASY_SCORE_PATTERN = re.compile(r"\bFS\b|fantasy\s+(?:score|points)", re.IGNORECASE)
+
+
+class FantasyScorePickRejected(Exception):
+    """Submission contained a fantasy-score prop we don't track."""
+
+    def __init__(self, descriptions: list[str]):
+        self.descriptions = descriptions
+        super().__init__(
+            f"Fantasy-score picks are not tracked: {', '.join(descriptions)}"
+        )
+
+
+def _is_fantasy_score_prop(prop: object) -> bool:
+    if not isinstance(prop, str) or not prop:
+        return False
+    return bool(_FANTASY_SCORE_PATTERN.search(prop))
+
+
+def _find_fantasy_score_props(picks: list["ParsedPick"]) -> list[str]:
+    """Return human-readable descriptions of any FS-style props in the list."""
+    matches: list[str] = []
+    for pick in picks:
+        if pick.pick_type == "prop":
+            detail = pick.pick_detail or {}
+            if _is_fantasy_score_prop(detail.get("prop")):
+                matches.append(f"{detail.get('player', '?')} {detail.get('prop', '')}")
+        elif pick.pick_type == "parlay":
+            for leg in (pick.pick_detail or {}).get("legs", []) or []:
+                if leg.get("type") != "prop":
+                    continue
+                leg_detail = leg.get("detail") or {}
+                if _is_fantasy_score_prop(leg_detail.get("prop")):
+                    matches.append(
+                        f"{leg_detail.get('player', '?')} {leg_detail.get('prop', '')}"
+                    )
+    return matches
 
 
 @dataclass
@@ -97,6 +140,14 @@ async def ingest_tweet_for_creator(
     parsed_picks, extraction_method, extracted_text = await _extract_picks(post, source)
 
     if parsed_picks:
+        fs_descriptions = _find_fantasy_score_props(parsed_picks)
+        if fs_descriptions:
+            log.info(
+                "submission_rejected_fantasy_score",
+                url=post.post_url,
+                props=fs_descriptions,
+            )
+            raise FantasyScorePickRejected(fs_descriptions)
         await _enrich_with_opponents(parsed_picks)
         # Note: we deliberately do NOT fetch market odds at submit time. Lines
         # drift between when a creator posts and when a user submits, so a

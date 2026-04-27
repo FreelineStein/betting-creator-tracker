@@ -14,7 +14,10 @@ from app.api.deps import require_admin
 from app.database import get_db
 from app.models import Creator
 from app.scrapers.twitter import TwitterScraper
-from app.services.tweet_ingestion import ingest_tweet_for_creator
+from app.services.tweet_ingestion import (
+    FantasyScorePickRejected,
+    ingest_tweet_for_creator,
+)
 
 log = structlog.get_logger()
 
@@ -49,10 +52,20 @@ async def scrape_tweets(
     new_sources = 0
     new_picks = 0
     skipped_existing = 0
+    skipped_fantasy_score = []
     pick_details = []
 
     for post in posts:
-        result = await ingest_tweet_for_creator(db, post, creator)
+        # Savepoint so a per-tweet rejection (e.g. fantasy-score) can be rolled
+        # back without nuking the rest of the batch's pending writes.
+        sp = db.begin_nested()
+        try:
+            result = await ingest_tweet_for_creator(db, post, creator)
+            sp.commit()
+        except FantasyScorePickRejected as e:
+            sp.rollback()
+            skipped_fantasy_score.append({"url": post.post_url, "props": e.descriptions})
+            continue
         if result.already_tracked:
             skipped_existing += 1
             continue
@@ -71,5 +84,6 @@ async def scrape_tweets(
         "new_sources": new_sources,
         "new_picks": new_picks,
         "skipped_existing": skipped_existing,
+        "skipped_fantasy_score": skipped_fantasy_score,
         "picks": pick_details,
     }

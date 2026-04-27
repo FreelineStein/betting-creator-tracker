@@ -24,7 +24,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.scrapers.twitter import TwitterScraper
 from app.services.creator_lookup import find_or_create_creator_by_twitter_handle
-from app.services.tweet_ingestion import ingest_tweet_for_creator
+from app.services.tweet_ingestion import (
+    FantasyScorePickRejected,
+    ingest_tweet_for_creator,
+)
 from app.services.turnstile import verify_turnstile_token
 
 log = structlog.get_logger()
@@ -113,6 +116,16 @@ async def submit_pick(
     try:
         result = await ingest_tweet_for_creator(db, post, creator)
         db.commit()
+    except FantasyScorePickRejected:
+        db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "We don't currently track fantasy-score picks (e.g., Hitter FS, "
+                "Pitcher FS, Fantasy Score). The points formula varies by book, "
+                "so outcomes can't be resolved reliably."
+            ),
+        )
     except Exception as e:
         db.rollback()
         log.error("submission_ingest_failed", url=url, error=str(e))

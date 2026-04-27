@@ -21,7 +21,10 @@ from app.models import Creator, Pick, Source
 from app.scrapers.twitter import TwitterScraper
 from app.services.creator_lookup import find_or_create_creator_by_twitter_handle
 from app.services.record_updater import recompute_record
-from app.services.tweet_ingestion import ingest_tweet_for_creator
+from app.services.tweet_ingestion import (
+    FantasyScorePickRejected,
+    ingest_tweet_for_creator,
+)
 
 log = structlog.get_logger()
 
@@ -126,6 +129,12 @@ async def reprocess_url(
     # 4. Re-ingest under the current pipeline.
     try:
         result = await ingest_tweet_for_creator(db, post, creator)
+    except FantasyScorePickRejected as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail=f"Fantasy-score picks are not tracked: {', '.join(e.descriptions)}",
+        )
     except Exception as e:
         db.rollback()
         log.error("admin_reprocess_ingest_failed", url=post.post_url, error=str(e))
