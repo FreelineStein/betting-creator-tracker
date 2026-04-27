@@ -148,7 +148,7 @@ async def find_player_stat(
 
 @dataclass
 class ScheduledGame:
-    """A game from the ESPN scoreboard — used for opponent enrichment at submit time."""
+    """A game from the ESPN scoreboard — used for opponent enrichment at submit time and outcome resolution."""
     game_id: str
     sport: str
     home_team: str       # full name e.g. "Cleveland Cavaliers"
@@ -157,6 +157,9 @@ class ScheduledGame:
     away_short: str
     commence_time: datetime
     completed: bool
+    # Final scores when completed=True. For tennis, these are sets won.
+    home_score: Optional[int] = None
+    away_score: Optional[int] = None
 
 
 # Cache scheduled games per (sport, day-window) for 30 minutes.
@@ -206,6 +209,34 @@ async def get_scheduled_games(
     _scheduled_cache[cache_key] = (now, games)
     log.info("Fetched ESPN scheduled games", sport=sport, count=len(games))
     return games
+
+
+async def get_completed_games_espn(
+    sport: str, days_back: int = 3,
+) -> list[ScheduledGame]:
+    """
+    Fetch recently completed games from ESPN's free scoreboard.
+    Counterpart to odds_api.get_completed_games — same shape of result, no quota.
+    Filters to games marked STATUS_FINAL with both scores populated.
+    """
+    # days_ahead=1 includes today's date in _fetch_team_sport_games' range(-days_back, days_ahead),
+    # so we catch games that finished earlier today.
+    games = await get_scheduled_games(sport, days_back=days_back, days_ahead=1)
+    return [
+        g for g in games
+        if g.completed and g.home_score is not None and g.away_score is not None
+    ]
+
+
+def _parse_competitor_score(competitor: dict) -> Optional[int]:
+    """Pull final score from an ESPN competitor entry. Returns None if absent or unparseable."""
+    raw = competitor.get("score")
+    if raw is None or raw == "":
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 async def _fetch_team_sport_games(
@@ -311,6 +342,8 @@ def _parse_tennis_match(match: dict) -> Optional[ScheduledGame]:
         away_short=p2_short,
         commence_time=commence,
         completed=completed,
+        home_score=_parse_competitor_score(competitors[0]),
+        away_score=_parse_competitor_score(competitors[1]),
     )
 
 
@@ -362,6 +395,8 @@ def _parse_scoreboard_event(event: dict, sport: str) -> Optional[ScheduledGame]:
         away_short=away_short,
         commence_time=commence,
         completed=completed,
+        home_score=_parse_competitor_score(home),
+        away_score=_parse_competitor_score(away),
     )
 
 
