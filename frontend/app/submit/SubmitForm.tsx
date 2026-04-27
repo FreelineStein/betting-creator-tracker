@@ -230,7 +230,7 @@ export default function SubmitForm({
               Loading verification…
             </p>
           )}
-          {turnstileLoadFailed && (
+          {turnstileLoadFailed && !turnstileReady && (
             <p className="text-xs text-alert-deep">
               Couldn&apos;t load verification (Cloudflare Turnstile may be blocked
               by an ad-blocker or your network). Refresh the page to try again.
