@@ -54,11 +54,16 @@ function formatPickDetail(type: string, detail: Record<string, string | number>)
   return JSON.stringify(detail);
 }
 
+// US sports schedules are conventionally communicated in Eastern time, and
+// pinning a timezone makes the date stable regardless of where the page is
+// rendered (Vercel runs in UTC by default, which would otherwise show a late
+// East-coast game on the next calendar day).
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "America/New_York",
   });
 }
 
@@ -226,10 +231,17 @@ export default async function CreatorPage({ params }: Props) {
               <div className="col-span-2">Odds</div>
               <div className="col-span-2">Result</div>
             </div>
-            {resolvedPicks.map((pick) => (
+            {resolvedPicks.map((pick, i) => {
+              const prev = i > 0 ? resolvedPicks[i - 1] : null;
+              const isNewDay =
+                !!prev &&
+                formatDate(prev.event_date) !== formatDate(pick.event_date);
+              return (
               <div
                 key={pick.pick_id}
-                className="grid grid-cols-12 px-4 py-3 border-b border-ink-800/60 last:border-0 text-sm items-center"
+                className={`grid grid-cols-12 px-4 py-3 border-b border-ink-800/60 last:border-0 text-sm items-center ${
+                  isNewDay ? "border-t border-t-ink-800/80 mt-1 pt-4" : ""
+                }`}
               >
                 <div className="col-span-2 font-mono text-xs text-ink-400">
                   {formatDate(pick.event_date)}
@@ -273,7 +285,8 @@ export default async function CreatorPage({ params }: Props) {
                   <StatusBadge status={pick.status} />
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
