@@ -17,22 +17,26 @@ def setup_scheduler():
     scrape_hours = getattr(settings, "scrape_interval_hours", 4)
     # Outcome resolution doesn't need to be near-real-time — every 2h keeps
     # us well inside the 450/month Odds API free tier and leaves headroom for
-    # the new submit-time odds enrichment.
+    # the closing-odds capture job below.
     resolve_hours = getattr(settings, "resolve_interval_hours", 2)
+    closing_odds_minutes = getattr(settings, "closing_odds_interval_minutes", 30)
 
-    # Scrape tracked creators
     scheduler.add_job(
         scrape_all_creators,
         trigger=IntervalTrigger(hours=scrape_hours),
         id="scrape_creators",
         replace_existing=True,
     )
-
-    # Resolve pending pick outcomes
     scheduler.add_job(
         resolve_pending_outcomes,
         trigger=IntervalTrigger(hours=resolve_hours),
         id="resolve_outcomes",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        capture_closing_odds,
+        trigger=IntervalTrigger(minutes=closing_odds_minutes),
+        id="closing_odds",
         replace_existing=True,
     )
 
@@ -41,6 +45,7 @@ def setup_scheduler():
         "Scheduler started",
         scrape_interval_hours=scrape_hours,
         resolve_interval_hours=resolve_hours,
+        closing_odds_interval_minutes=closing_odds_minutes,
     )
 
 
@@ -181,6 +186,98 @@ async def _scrape_creator_platform(creator, platform_config: dict, db):
             error=str(e),
         )
         db.rollback()
+
+
+async def capture_closing_odds():
+    """
+    Fill in `pick.odds` for picks whose game starts in the next ~90 minutes.
+
+    Runs every 30 min by default. The window is wide enough that a single
+    miss (job runs late, network blip, etc.) gets a second chance on the
+    next tick. Once a pick is filled, it's never re-fetched.
+
+    Only `pick.odds` is mutated — every other field on the Pick row is
+    preserved. Self-throttles via odds_api.check_budget(); when the budget
+    is near zero the lookup quietly returns nothing and the picks stay
+    null until next month.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from app.database import SessionLocal
+    from app.models import Pick, PickStatus
+    from app.services.odds_api import (
+        SPORT_KEY_MAP,
+        find_odds_for_pick,
+        get_odds_for_sport,
+    )
+
+    now = datetime.now(timezone.utc)
+    window_end = now + timedelta(minutes=90)
+
+    db = SessionLocal()
+    try:
+        candidates = (
+            db.query(Pick)
+            .filter(
+                Pick.status == PickStatus.pending,
+                Pick.odds.is_(None),
+                Pick.event_date.isnot(None),
+                Pick.event_date >= now,
+                Pick.event_date <= window_end,
+                Pick.pick_type.in_(["moneyline", "spread", "over_under"]),
+            )
+            .all()
+        )
+        # Drop picks for sports we can't look up (e.g., parlay legs already
+        # roll up into the parent type, props go through ESPN, tennis isn't
+        # in SPORT_KEY_MAP yet).
+        candidates = [
+            p for p in candidates
+            if p.sport and p.sport.upper() in SPORT_KEY_MAP
+        ]
+
+        if not candidates:
+            return
+
+        log.info("closing_odds_candidates", count=len(candidates))
+
+        sports = {p.sport for p in candidates}
+        odds_by_sport: dict[str, list] = {}
+        for sport in sports:
+            odds_by_sport[sport] = await get_odds_for_sport(sport)
+
+        filled = 0
+        for pick in candidates:
+            games = odds_by_sport.get(pick.sport) or []
+            if not games:
+                continue
+            team = (pick.pick_detail or {}).get("team") if isinstance(pick.pick_detail, dict) else None
+            odds = find_odds_for_pick(
+                team=team,
+                pick_type=pick.pick_type,
+                pick_detail=pick.pick_detail or {},
+                games=games,
+            )
+            if odds:
+                pick.odds = odds
+                filled += 1
+                log.info(
+                    "closing_odds_captured",
+                    pick_id=pick.pick_id,
+                    sport=pick.sport,
+                    team=team,
+                    pick_type=pick.pick_type,
+                    odds=odds,
+                )
+
+        if filled:
+            db.commit()
+        log.info("CLOSING_ODDS_DONE", candidates=len(candidates), filled=filled)
+    except Exception as e:
+        db.rollback()
+        log.error("closing_odds_failed", error=str(e))
+    finally:
+        db.close()
 
 
 async def resolve_pending_outcomes():
