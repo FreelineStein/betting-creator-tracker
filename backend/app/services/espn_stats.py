@@ -157,21 +157,25 @@ _scheduled_cache: dict[str, tuple[datetime, list]] = {}
 _SCHEDULED_CACHE_TTL = timedelta(minutes=30)
 
 
-async def get_scheduled_games(sport: str, days_ahead: int = 4) -> list[ScheduledGame]:
+async def get_scheduled_games(
+    sport: str, days_back: int = 1, days_ahead: int = 5,
+) -> list[ScheduledGame]:
     """
-    Fetch upcoming + in-progress games from ESPN's free scoreboard endpoint.
+    Fetch upcoming + recently-completed games from ESPN's free scoreboard.
     Used to fill in the opponent for picks that name only one team.
 
-    Walks today + the next `days_ahead - 1` days. ESPN scoreboards are
-    keyed by date, and a game in late evening UTC may belong to the next
-    day's scoreboard, so we need a small window. No auth, no quota.
+    Walks `days_back` days behind through `days_ahead` days forward. The
+    backward window is needed because a creator may post a pick the day of
+    the game and a user may submit it after the game has started or even
+    finished. ESPN serves both upcoming and completed games on the same
+    scoreboard endpoint. No auth, no quota.
     """
     league_info = LEAGUE_MAP.get(sport.upper())
     if not league_info:
         return []
     sport_path, league = league_info
 
-    cache_key = f"{sport}:{days_ahead}"
+    cache_key = f"{sport}:{days_back}:{days_ahead}"
     now = datetime.now(timezone.utc)
     if cache_key in _scheduled_cache:
         cached_at, cached = _scheduled_cache[cache_key]
@@ -179,7 +183,10 @@ async def get_scheduled_games(sport: str, days_ahead: int = 4) -> list[Scheduled
             return cached
 
     today = now.date()
-    dates = [(today + timedelta(days=i)).strftime("%Y%m%d") for i in range(days_ahead)]
+    dates = [
+        (today + timedelta(days=i)).strftime("%Y%m%d")
+        for i in range(-days_back, days_ahead)
+    ]
 
     games: list[ScheduledGame] = []
     seen_ids: set[str] = set()
@@ -255,11 +262,11 @@ def _parse_scoreboard_event(event: dict, sport: str) -> Optional[ScheduledGame]:
     )
 
 
-# Team-nickname aliases — needed because abbreviations like "Cavs" / "Mavs"
-# / "Sixers" / "T-Wolves" are NOT substrings of the official team names
-# ("Cavaliers", "Mavericks", "76ers", "Timberwolves"). Only NBA needs this
-# heavily; other leagues' common nicknames are usually substrings of the
-# full name (e.g. "Lakers" in "Los Angeles Lakers" works without aliasing).
+# Team-nickname aliases — needed because betting-Twitter abbreviations like
+# "Cavs" / "Mavs" / "Avs" / "Sixers" / "T-Wolves" are NOT substrings of the
+# official team names ("Cavaliers", "Mavericks", "Avalanche", "76ers",
+# "Timberwolves"). When you find a missed alias, add a row here — see the
+# "team_alias_miss" log line below for what to add.
 _NICKNAME_ALIASES: dict[str, str] = {
     # NBA
     "cavs": "cavaliers",
@@ -271,20 +278,42 @@ _NICKNAME_ALIASES: dict[str, str] = {
     "wolves": "timberwolves",
     "blazers": "trail blazers",
     "trail blazers": "trail blazers",
-    # NFL — most common informal forms that aren't substrings
+    "dubs": "warriors",
+    # NFL — abbreviations that aren't substrings of the official names
     "niners": "49ers",
     "49ers": "49ers",
     "bucs": "buccaneers",
     "jags": "jaguars",
+    "skins": "commanders",      # legacy abbr for old name
+    "iggles": "eagles",
     # NHL
+    "avs": "avalanche",
     "habs": "canadiens",
     "preds": "predators",
     "caps": "capitals",
     "leafs": "maple leafs",
+    "isles": "islanders",
+    "sens": "senators",
+    "jackets": "blue jackets",
+    "bjs": "blue jackets",
+    "yotes": "coyotes",
+    "nucks": "canucks",
+    "canes": "hurricanes",
+    "bolts": "lightning",
+    "wild": "wild",
+    "stars": "stars",
     # MLB
     "d-backs": "diamondbacks",
     "dbacks": "diamondbacks",
-    "sox": "red sox",  # ambiguous w/ White Sox; bidirectional matching handles either
+    "diamondbacks": "diamondbacks",
+    "sox": "red sox",            # ambiguous w/ White Sox; bidirectional matching handles either
+    "bosox": "red sox",
+    "chisox": "white sox",
+    "m's": "mariners",
+    "ms": "mariners",
+    "stros": "astros",
+    "halos": "angels",
+    "bucs-mlb": "pirates",       # disambiguates from Buccaneers if the parser ever feeds full text
 }
 
 
@@ -295,10 +324,14 @@ def _normalize_team_query(name: str) -> str:
 
 def find_opponent_in_schedule(
     team: str, games: list[ScheduledGame]
-) -> Optional[tuple[str, datetime]]:
+) -> Optional[tuple[str, str, datetime]]:
     """
     Given a team name like "Cavs" or "Cleveland Cavaliers", find the
-    matching scheduled game and return (opponent_full_name, commence_time).
+    matching scheduled game.
+
+    Returns (matched_team_canonical, opponent_canonical, commence_time).
+    Both names are the ESPN "short" form (e.g. "Avalanche", "Cavaliers")
+    so callers can normalize the user-entered abbreviation away.
 
     Match strategy (in order of preference):
       1. exact match on full or short name
@@ -312,11 +345,12 @@ def find_opponent_in_schedule(
     if not needle:
         return None
 
-    candidates: list[tuple[ScheduledGame, str]] = []
+    # (game, matched_team_short, opponent_short)
+    candidates: list[tuple[ScheduledGame, str, str]] = []
     for game in games:
-        for full, short, opponent in [
-            (game.home_team, game.home_short, game.away_team),
-            (game.away_team, game.away_short, game.home_team),
+        for full, short, opponent_full, opponent_short in [
+            (game.home_team, game.home_short, game.away_team, game.away_short),
+            (game.away_team, game.away_short, game.home_team, game.home_short),
         ]:
             full_l = full.lower()
             short_l = short.lower()
@@ -327,14 +361,24 @@ def find_opponent_in_schedule(
                 or needle in short_l
                 or short_l in needle
             ):
-                candidates.append((game, opponent))
+                candidates.append((game, short, opponent_short))
                 break
 
     if not candidates:
+        # Visibility hook: when this fires, the team name in the log is the
+        # one to add to _NICKNAME_ALIASES (or its canonical form is missing).
+        log.warning(
+            "team_alias_miss",
+            query=team,
+            normalized=needle,
+            sample_teams=[
+                f"{g.away_short} @ {g.home_short}" for g in games[:6]
+            ],
+        )
         return None
     candidates.sort(key=lambda c: c[0].commence_time)
-    soonest, opponent = candidates[0]
-    return opponent, soonest.commence_time
+    soonest, matched_short, opponent_short = candidates[0]
+    return matched_short, opponent_short, soonest.commence_time
 
 
 async def _get_event_ids(sport_path: str, league: str, date_str: str) -> list[str]:

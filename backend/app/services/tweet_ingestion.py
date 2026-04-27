@@ -246,8 +246,12 @@ async def _enrich_with_opponents(picks: list[ParsedPick]) -> None:
                     games = games_by_sport.get(sport, [])
                     found = find_opponent_in_schedule(team, games)
                     if found:
-                        opponent, _commence = found
-                        leg["event"] = f"{team} vs {opponent}"
+                        matched, opponent, _commence = found
+                        leg["event"] = f"{matched} vs {opponent}"
+                        # Normalize the leg's team to the canonical short name too
+                        leg_detail = leg.get("detail")
+                        if isinstance(leg_detail, dict) and leg_detail.get("team"):
+                            leg_detail["team"] = matched
 
 
 def _event_needs_opponent(event: Optional[str], team: Optional[str]) -> bool:
@@ -292,8 +296,12 @@ def _fill_event_from_lookup(pick: ParsedPick, team: str, games: list) -> None:
     found = find_opponent_in_schedule(team, games)
     if not found:
         return
-    opponent, commence_time = found
-    pick.event = f"{team} vs {opponent}"
+    matched, opponent, commence_time = found
+    # Use canonical short names (e.g. "Avalanche" not "Avs") so display,
+    # event string, and outcome-resolution lookups all agree.
+    pick.event = f"{matched} vs {opponent}"
+    if isinstance(pick.pick_detail, dict) and pick.pick_detail.get("team"):
+        pick.pick_detail["team"] = matched
     # If the parser didn't pick up an event_date, we now have one for free —
     # use the game's commence time so outcome resolution can match later.
     if pick.event_date is None:
