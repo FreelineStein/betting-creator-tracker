@@ -718,6 +718,37 @@ def _names_match(search: str, candidate: str) -> bool:
     return False
 
 
+_DOUBLE_DOUBLE_CATEGORIES = ("PTS", "REB", "AST", "STL", "BLK")
+
+
+def _resolve_threshold_achievement(
+    labels: list[str], stats: list[str], required: int,
+) -> Optional[float]:
+    """
+    Double-Double / Triple-Double: count how many of PTS/REB/AST/STL/BLK the
+    player hit 10+ in. Returns 1.0 if they reached the threshold (2 for DD,
+    3 for TD), 0.0 otherwise, or None if the box score didn't carry the
+    needed categories.
+    """
+    found_any = False
+    count = 0
+    for cat in _DOUBLE_DOUBLE_CATEGORIES:
+        if cat not in labels:
+            continue
+        idx = labels.index(cat)
+        if idx >= len(stats):
+            continue
+        val = _parse_stat_value(stats[idx], cat)
+        if val is None:
+            continue
+        found_any = True
+        if val >= 10:
+            count += 1
+    if not found_any:
+        return None
+    return 1.0 if count >= required else 0.0
+
+
 def _extract_stat(
     labels: list[str],
     stats: list[str],
@@ -730,6 +761,14 @@ def _extract_stat(
     # Combo props go through the normalizer so parser long-form ("points + rebounds")
     # and creator shorthand ("PAs", "PRA") both reach the canonical COMBO_PROPS keys.
     normalized = _normalize_prop_name(prop_name)
+
+    # Threshold-achievement props (PrizePicks "Triple-Double" / "Double-Double"
+    # come through with line=0.5, direction=Over). Return 1.0 if the player
+    # achieved it, 0.0 if not — resolve_prop's >/< comparison does the rest.
+    if "triple-double" in prop_lower or "triple double" in prop_lower:
+        return _resolve_threshold_achievement(labels, stats, required=3)
+    if "double-double" in prop_lower or "double double" in prop_lower:
+        return _resolve_threshold_achievement(labels, stats, required=2)
 
     combo_labels = COMBO_PROPS.get(normalized)
     if combo_labels:

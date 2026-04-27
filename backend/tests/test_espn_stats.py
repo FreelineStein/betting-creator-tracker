@@ -214,3 +214,47 @@ def test_extract_stat_resolves_pas_abbreviation():
     stats = ["32", "18", "5", "7"]
     # Amen Thompson "PAs" — points + assists — 18 + 7 = 25.
     assert _extract_stat(labels, stats, "PAs", "NBA", 0) == 25
+
+
+# --- Threshold-achievement props (Double-Double / Triple-Double) ---
+
+def test_double_double_achieved():
+    from app.services.espn_stats import _extract_stat
+    labels = ["MIN", "PTS", "REB", "AST", "STL", "BLK"]
+    stats = ["38", "25", "12", "5", "1", "0"]
+    # 25 pts + 12 reb = 2 categories at 10+ → DD achieved → 1.0.
+    assert _extract_stat(labels, stats, "Double-Double", "NBA", 0) == 1.0
+
+def test_double_double_not_achieved():
+    from app.services.espn_stats import _extract_stat
+    labels = ["MIN", "PTS", "REB", "AST", "STL", "BLK"]
+    stats = ["38", "25", "8", "5", "1", "0"]
+    # Only PTS hits 10+ → 0.0.
+    assert _extract_stat(labels, stats, "Double-Double", "NBA", 0) == 0.0
+
+def test_triple_double_achieved():
+    from app.services.espn_stats import _extract_stat
+    labels = ["MIN", "PTS", "REB", "AST", "STL", "BLK"]
+    stats = ["38", "22", "10", "12", "1", "0"]
+    # 22 / 10 / 12 → 3 categories at 10+ → TD → 1.0.
+    assert _extract_stat(labels, stats, "Triple-Double", "NBA", 0) == 1.0
+
+def test_triple_double_not_achieved_with_dd():
+    from app.services.espn_stats import _extract_stat
+    labels = ["MIN", "PTS", "REB", "AST", "STL", "BLK"]
+    stats = ["38", "22", "10", "9", "1", "0"]
+    # 22 / 10 / 9 → 2 categories at 10+ — DD but not TD → 0.0.
+    assert _extract_stat(labels, stats, "Triple-Double", "NBA", 0) == 0.0
+
+def test_threshold_prop_case_and_separator_variants():
+    from app.services.espn_stats import _extract_stat
+    labels = ["MIN", "PTS", "REB", "AST"]
+    stats = ["38", "25", "12", "5"]
+    # All of these should hit the same DD branch.
+    for variant in ("Double-Double", "double-double", "Double Double", "double double"):
+        assert _extract_stat(labels, stats, variant, "NBA", 0) == 1.0
+
+def test_threshold_prop_returns_none_when_box_empty():
+    from app.services.espn_stats import _extract_stat
+    # Box score with none of the relevant categories — can't tell.
+    assert _extract_stat(["MIN", "FG"], ["38", "10-15"], "Triple-Double", "NBA", 0) is None
