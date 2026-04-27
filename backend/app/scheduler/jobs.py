@@ -214,6 +214,10 @@ async def resolve_pending_outcomes():
             if new_status != PickStatus.pending:
                 pick.status = new_status
                 pick.outcome_resolved_at = now
+                # Snap event_date to the actual game start. This corrects picks
+                # whose event_date came from the logged_at fallback (parser missed
+                # it) and ensures pick history groups them under the right day.
+                pick.event_date = game.commence_time
                 updated_creators.add(pick.creator_id)
                 resolved_count += 1
                 if new_status == PickStatus.won:
@@ -277,6 +281,7 @@ async def resolve_pending_outcomes():
                         if new_status != PickStatus.pending:
                             pick.status = new_status
                             pick.outcome_resolved_at = now
+                            pick.event_date = game.commence_time
                             updated_creators.add(pick.creator_id)
                             resolved_count += 1
                             log.info("Resolved unknown-sport pick", pick_id=pick.pick_id, inferred_sport=sport)
