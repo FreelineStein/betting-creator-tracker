@@ -4,6 +4,7 @@ No network calls — feeds canned ESPN payload shapes through the parsers.
 Run: ./venv/bin/pytest tests/test_espn_stats.py -v
 """
 from app.services.espn_stats import (
+    _normalize_prop_name,
     _parse_competitor_score,
     _parse_scoreboard_event,
     _parse_tennis_match,
@@ -154,3 +155,62 @@ def test_odds_api_team_matches_picks_up_alias():
     # This previously returned False — substring miss. After unification it's True.
     assert _team_matches("Sixers", "Philadelphia 76ers") is True
     assert _team_matches("Avs", "Colorado Avalanche") is True
+
+
+# --- _normalize_prop_name (combo prop normalization) ---
+
+def test_normalize_long_form_two_stat_combo():
+    # Maxey leg: "points + rebounds" → must reach COMBO_PROPS["pts+reb"].
+    assert _normalize_prop_name("points + rebounds") == "pts+reb"
+
+def test_normalize_long_form_three_stat_combo():
+    # Brown leg: "points + rebounds + assists" → "pts+reb+ast".
+    assert _normalize_prop_name("points + rebounds + assists") == "pts+reb+ast"
+
+def test_normalize_mixed_case_and_spacing():
+    assert _normalize_prop_name("Points+Rebounds") == "pts+reb"
+    assert _normalize_prop_name("  Points  +  Rebounds  ") == "pts+reb"
+
+def test_normalize_pas_abbreviation():
+    # Amen Thompson "PAs" — confirmed Points + Assists.
+    assert _normalize_prop_name("PAs") == "pts+ast"
+    assert _normalize_prop_name("PA") == "pts+ast"
+
+def test_normalize_pra_abbreviation():
+    assert _normalize_prop_name("PRA") == "pts+reb+ast"
+
+def test_normalize_already_canonical():
+    # Existing short-form input passes through unchanged.
+    assert _normalize_prop_name("pts+reb+ast") == "pts+reb+ast"
+    assert _normalize_prop_name("pts+ast") == "pts+ast"
+
+def test_normalize_single_stat_long_form():
+    # Single-stat input is short-form'd; the caller's COMBO_PROPS lookup will
+    # miss and fall through to the long-form PROP_TO_LABEL path.
+    assert _normalize_prop_name("rebounds") == "reb"
+
+def test_normalize_empty_input():
+    assert _normalize_prop_name("") == ""
+    assert _normalize_prop_name("   ") == ""
+
+def test_normalize_unknown_token_passthrough():
+    # Unknown tokens are preserved so we can spot them in logs rather than
+    # silently mapping to the wrong stat.
+    assert _normalize_prop_name("doinks + dunks") == "doinks+dunks"
+
+
+# --- _extract_stat now resolves combos via the normalizer ---
+
+def test_extract_stat_resolves_long_form_combo():
+    from app.services.espn_stats import _extract_stat
+    labels = ["MIN", "PTS", "REB", "AST"]
+    stats = ["38", "27", "8", "6"]
+    # Brown's leg: "points + rebounds + assists" — totals 27 + 8 + 6 = 41.
+    assert _extract_stat(labels, stats, "points + rebounds + assists", "NBA", 0) == 41
+
+def test_extract_stat_resolves_pas_abbreviation():
+    from app.services.espn_stats import _extract_stat
+    labels = ["MIN", "PTS", "REB", "AST"]
+    stats = ["32", "18", "5", "7"]
+    # Amen Thompson "PAs" — points + assists — 18 + 7 = 25.
+    assert _extract_stat(labels, stats, "PAs", "NBA", 0) == 25

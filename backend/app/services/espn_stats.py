@@ -91,6 +91,55 @@ COMBO_PROPS: dict[str, list[str]] = {
     "pts+reb+ast+stl+blk": ["PTS", "REB", "AST", "STL", "BLK"],
 }
 
+# Long-form stat names the parser emits, mapped to the short-form tokens used
+# in COMBO_PROPS keys. Pass-through entries keep already-short input stable.
+_PROP_TOKEN_MAP: dict[str, str] = {
+    "points": "pts",   "pts": "pts",
+    "rebounds": "reb", "rebs": "reb", "reb": "reb",
+    "assists": "ast",  "asts": "ast", "ast": "ast",
+    "steals": "stl",   "stl": "stl",
+    "blocks": "blk",   "blk": "blk",
+    "turnovers": "to", "to": "to",
+}
+
+# Whole-string abbreviation aliases for combo props as creators write them
+# (DraftKings tickets, Twitter shorthand). Matched before tokenization because
+# forms like "PAs" / "PRA" have no separator to split on.
+_PROP_COMBO_ALIASES: dict[str, str] = {
+    "pra": "pts+reb+ast",
+    "pr":  "pts+reb",
+    "pa":  "pts+ast",
+    "pas": "pts+ast",  # plural form seen in tweets — same meaning as "PA"
+    "ra":  "reb+ast",
+}
+
+
+def _normalize_prop_name(prop: str) -> str:
+    """
+    Map a parser-emitted prop name to the canonical short-form used as keys
+    in COMBO_PROPS. Single-stat props (e.g. "rebounds") are still emitted in
+    short-form ("reb") here, but the PROP_TO_LABEL lookup downstream uses
+    long-form keys, so callers should fall back to the un-normalized name
+    when COMBO_PROPS doesn't match.
+
+    Examples:
+      "points + rebounds + assists" → "pts+reb+ast"
+      "Points + Rebounds"           → "pts+reb"
+      "PAs"                         → "pts+ast"
+    """
+    if not prop:
+        return ""
+    raw = prop.strip().lower()
+    # Whole-string abbreviation alias takes precedence (handles "PAs", "PRA").
+    alias = _PROP_COMBO_ALIASES.get(raw.replace(" ", ""))
+    if alias:
+        return alias
+    tokens = [t.strip() for t in re.split(r"\s*\+\s*", raw) if t.strip()]
+    if not tokens:
+        return raw
+    mapped = [_PROP_TOKEN_MAP.get(t, t) for t in tokens]
+    return "+".join(mapped)
+
 
 @dataclass
 class PlayerGameStats:
@@ -678,9 +727,11 @@ def _extract_stat(
 ) -> Optional[float]:
     """Extract a numeric stat value from the box score labels/stats arrays."""
     prop_lower = prop_name.lower()
+    # Combo props go through the normalizer so parser long-form ("points + rebounds")
+    # and creator shorthand ("PAs", "PRA") both reach the canonical COMBO_PROPS keys.
+    normalized = _normalize_prop_name(prop_name)
 
-    # Check combo props first (pts+reb+ast, etc.)
-    combo_labels = COMBO_PROPS.get(prop_lower)
+    combo_labels = COMBO_PROPS.get(normalized)
     if combo_labels:
         total = 0.0
         found_any = False
