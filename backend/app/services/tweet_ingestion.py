@@ -32,6 +32,7 @@ from app.pipeline.parser import ParsedPick, parse_picks
 from app.scrapers.base import RawPost
 from app.scrapers.twitter import extract_image_url, extract_text_from_image
 from app.services.espn_stats import find_opponent_in_schedule, get_scheduled_games
+from app.services.odds_api import find_odds_for_pick, get_odds_for_sport
 from app.posthog_client import posthog_client
 
 log = structlog.get_logger()
@@ -150,12 +151,12 @@ async def ingest_tweet_for_creator(
             )
             raise FantasyScorePickRejected(fs_descriptions)
         await _enrich_with_opponents(parsed_picks)
-        # Note: we deliberately do NOT fetch market odds at submit time. Lines
-        # drift between when a creator posts and when a user submits, so a
-        # snapshot here is often wrong. The closing-odds job in the scheduler
-        # captures the line just before commence, which is the canonical
-        # "what was the bet at" number. If the LLM extracted odds from the
-        # post text, those are kept verbatim.
+        # Fill market odds at submit time so picks display a price immediately
+        # instead of waiting for the closing-odds cron (which only fires within
+        # 90 min of game start). Self-throttles via the Odds API budget guard,
+        # so a busy month can't blow the 450-call free-tier cap. LLM-extracted
+        # odds from the post text are preserved verbatim.
+        await _enrich_with_odds(parsed_picks)
 
     source.raw_content = extracted_text
     source.extraction_status = (
@@ -276,6 +277,50 @@ def _filter_low_quality(picks: list[ParsedPick]) -> list[ParsedPick]:
         if p.confidence >= MIN_PICK_CONFIDENCE
         and not (p.pick_type == "parlay" and not p.pick_detail.get("legs"))
     ]
+
+
+# ---------------------------------------------------------------------------
+# Odds enrichment
+# ---------------------------------------------------------------------------
+
+async def _enrich_with_odds(picks: list[ParsedPick]) -> None:
+    """
+    Fill in `pick.odds` for picks where the LLM parser didn't find a price
+    in the post text. Calls The Odds API once per sport that needs lookup.
+
+    Self-throttles via odds_api.check_budget() — when the monthly budget is
+    near zero the lookup quietly returns nothing and the pick stays unpriced
+    rather than blowing the 450/month free-tier cap. Skips parlay (parlay-
+    level odds usually come from the post itself) and prop (no /odds market).
+    """
+    sports_needed = {
+        p.sport for p in picks
+        if p.sport
+        and p.odds is None
+        and p.pick_type in ("moneyline", "spread", "over_under")
+    }
+    if not sports_needed:
+        return
+
+    odds_by_sport: dict[str, list[dict]] = {}
+    for sport in sports_needed:
+        odds_by_sport[sport] = await get_odds_for_sport(sport)
+
+    for pick in picks:
+        if pick.odds is not None:
+            continue
+        if pick.sport not in odds_by_sport or not odds_by_sport[pick.sport]:
+            continue
+        team = (pick.pick_detail or {}).get("team") if isinstance(pick.pick_detail, dict) else None
+        odds = find_odds_for_pick(
+            team=team,
+            pick_type=pick.pick_type,
+            pick_detail=pick.pick_detail or {},
+            games=odds_by_sport[pick.sport],
+        )
+        if odds:
+            pick.odds = odds
+            log.info("odds_filled_at_submit", sport=pick.sport, team=team, odds=odds, pick_type=pick.pick_type)
 
 
 # ---------------------------------------------------------------------------
