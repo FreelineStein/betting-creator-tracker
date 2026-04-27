@@ -63,10 +63,13 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function isToday(dateStr: string | null, fallback: string): boolean {
-  const pickDate = new Date(dateStr ?? fallback).toLocaleDateString();
-  const today = new Date().toLocaleDateString();
-  return pickDate === today;
+function isActive(dateStr: string | null, fallback: string): boolean {
+  // Active = event hasn't happened yet, OR event/log is the current calendar day.
+  // Falls back to logged_at when event_date is missing (legacy picks).
+  const ts = new Date(dateStr ?? fallback);
+  if (Number.isNaN(ts.getTime())) return false;
+  if (ts.getTime() >= Date.now()) return true;
+  return ts.toLocaleDateString() === new Date().toLocaleDateString();
 }
 
 function LegDot({ result }: { result: string }) {
@@ -113,9 +116,9 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
   return (
     <div className="space-y-6">
       {creators.map(({ creator, record, picks }) => {
-        const todayPicks = picks.filter((p) => isToday(p.event_date, p.logged_at));
-        const recentPicks = todayPicks.slice(0, 5);
-        const pendingPicks = todayPicks.filter((p) => p.status === "pending");
+        const activePicks = picks.filter((p) => isActive(p.event_date, p.logged_at));
+        const recentPicks = activePicks.slice(0, 5);
+        const pendingPicks = activePicks.filter((p) => p.status === "pending");
         const winRate = hasRecord(record) ? Math.round(record!.win_rate * 100) : null;
         const winRateColor = winRateTone(winRate);
 
@@ -257,20 +260,20 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
                 ))}
 
                 {/* View all link */}
-                {todayPicks.length > 5 && (
+                {activePicks.length > 5 && (
                   <div className="px-6 py-2.5 border-t border-ink-800/60">
                     <Link
                       href={`/creators/${creator.creator_id}`}
                       className="font-mono text-[11px] uppercase tracking-label text-signal hover:text-signal/80 transition-colors"
                     >
-                      View all {todayPicks.length} picks today →
+                      View all {activePicks.length} active picks →
                     </Link>
                   </div>
                 )}
               </div>
             ) : (
               <div className="border-t border-ink-800 px-6 py-6 text-center">
-                <p className="text-ink-400 text-sm">No picks today.</p>
+                <p className="text-ink-400 text-sm">No active picks.</p>
               </div>
             )}
 
