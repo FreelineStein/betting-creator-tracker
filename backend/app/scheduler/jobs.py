@@ -18,20 +18,30 @@ def setup_scheduler():
     # Outcome resolution doesn't need to be near-real-time — every 2h keeps
     # us well inside the 450/month Odds API free tier and leaves headroom for
     # the closing-odds capture job below.
+    from datetime import datetime, timedelta, timezone
+
     resolve_hours = getattr(settings, "resolve_interval_hours", 2)
     closing_odds_minutes = getattr(settings, "closing_odds_interval_minutes", 30)
+
+    # Both jobs fire ~30s after process start so a Railway redeploy doesn't
+    # leave a dead window where neither runs. Otherwise a deploy at T means
+    # closing-odds doesn't tick until T + 30 min, which can miss games that
+    # commence in that gap.
+    first_run = datetime.now(timezone.utc) + timedelta(seconds=30)
 
     scheduler.add_job(
         resolve_pending_outcomes,
         trigger=IntervalTrigger(hours=resolve_hours),
         id="resolve_outcomes",
         replace_existing=True,
+        next_run_time=first_run,
     )
     scheduler.add_job(
         capture_closing_odds,
         trigger=IntervalTrigger(minutes=closing_odds_minutes),
         id="closing_odds",
         replace_existing=True,
+        next_run_time=first_run,
     )
 
     scheduler.start()

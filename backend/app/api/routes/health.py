@@ -46,3 +46,12 @@ async def trigger_resolve(request: Request, _admin: str = Depends(require_admin)
     from app.scheduler.jobs import resolve_pending_outcomes
     await resolve_pending_outcomes()
     return {"status": "resolver completed"}
+
+
+@router.post("/closing-odds")
+@limiter.limit("5/minute")
+async def trigger_closing_odds(request: Request, _admin: str = Depends(require_admin)):
+    """Manually trigger the closing-odds capture job."""
+    from app.scheduler.jobs import capture_closing_odds
+    await capture_closing_odds()
+    return {"status": "closing-odds completed"}
