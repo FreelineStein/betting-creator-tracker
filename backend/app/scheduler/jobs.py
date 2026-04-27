@@ -2,8 +2,6 @@
 Background jobs — runs on a schedule to scrape creators and process picks.
 APScheduler keeps it simple for now. Migrate to Celery when needed.
 """
-from typing import Optional
-
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -35,22 +33,11 @@ def setup_scheduler():
         replace_existing=True,
     )
 
-    if getattr(settings, "gmail_ingestion_enabled", False):
-        gmail_minutes = getattr(settings, "gmail_ingestion_interval_minutes", 10)
-        scheduler.add_job(
-            ingest_from_notifications,
-            trigger=IntervalTrigger(minutes=gmail_minutes),
-            id="gmail_ingestion",
-            replace_existing=True,
-        )
-        log.info("gmail_ingestion_registered", interval_minutes=gmail_minutes)
-
     scheduler.start()
     log.info(
         "Scheduler started",
         scrape_interval_hours=scrape_hours,
         resolve_interval_minutes=resolve_minutes,
-        gmail_ingestion_enabled=getattr(settings, "gmail_ingestion_enabled", False),
     )
 
 
@@ -191,124 +178,6 @@ async def _scrape_creator_platform(creator, platform_config: dict, db):
             error=str(e),
         )
         db.rollback()
-
-
-async def ingest_from_notifications():
-    """Poll Gmail for Twitter notification emails and run them through the pipeline."""
-    import json
-    from datetime import datetime, timedelta, timezone
-
-    from google.oauth2.credentials import Credentials
-
-    from app.adapters.twitter_gmail import TwitterGmailAdapter
-    from app.database import SessionLocal
-    from app.models import Creator, Source, ExtractionStatus
-    from app.pipeline import run_extraction_pipeline
-
-    if not settings.gmail_token_json:
-        log.warning("gmail_ingestion_skip_no_token")
-        return
-
-    creds = Credentials.from_authorized_user_info(json.loads(settings.gmail_token_json))
-    adapter = TwitterGmailAdapter(credentials=creds, label_id=settings.gmail_label_id)
-
-    lookback_hours = getattr(settings, "gmail_ingestion_lookback_hours", 2)
-    since = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
-
-    db = SessionLocal()
-    new_count = 0
-    skipped_no_creator = 0
-    try:
-        results = await adapter.fetch_new_posts(since=since)
-        log.info("gmail_ingestion_fetched", message_count=len(results))
-
-        for post, _meta in results:
-            existing = db.query(Source).filter(Source.post_url == post.post_url).first()
-            if existing:
-                continue
-
-            handle = (post.raw or {}).get("creator_handle")
-            creator = _resolve_creator_by_handle(db, handle)
-            if not creator:
-                skipped_no_creator += 1
-                log.warning("gmail_ingestion_unknown_handle", handle=handle, post_url=post.post_url)
-                continue
-
-            source = Source(
-                creator_id=creator.creator_id,
-                platform=post.platform,
-                post_type=post.post_type,
-                post_url=post.post_url,
-                posted_at=post.posted_at,
-            )
-            db.add(source)
-            db.flush()
-
-            raw_metadata = {
-                "caption": post.caption,
-                "description": post.description,
-                "subtitles": post.subtitles,
-                "video_url": post.video_url,
-                **(post.raw or {}),
-            }
-            extracted_text, attempts = await run_extraction_pipeline(post.post_url, raw_metadata)
-
-            source.raw_content = extracted_text
-            source.extraction_attempts = attempts
-            source.extraction_status = (
-                ExtractionStatus.success if extracted_text else ExtractionStatus.needs_review
-            )
-
-            if extracted_text:
-                from app.models import Pick, PickStatus
-                from app.pipeline.parser import parse_picks
-
-                parsed_picks = await parse_picks(extracted_text, source_url=post.post_url)
-                for parsed in parsed_picks:
-                    db.add(Pick(
-                        source_id=source.source_id,
-                        creator_id=creator.creator_id,
-                        sport=parsed.sport,
-                        event=parsed.event,
-                        event_date=parsed.event_date,
-                        pick_type=parsed.pick_type,
-                        pick_detail=parsed.pick_detail,
-                        odds=parsed.odds,
-                        units=parsed.units,
-                        status=PickStatus.pending,
-                        extraction_method=_get_extraction_method(attempts),
-                        extraction_confidence=parsed.confidence,
-                        raw_text=parsed.raw_text,
-                    ))
-            new_count += 1
-
-        db.commit()
-        log.info(
-            "GMAIL_INGESTION_COMPLETE",
-            new_sources=new_count,
-            skipped_no_creator=skipped_no_creator,
-        )
-    except Exception as e:
-        log.error("gmail_ingestion_failed", error=str(e))
-        db.rollback()
-    finally:
-        db.close()
-
-
-def _resolve_creator_by_handle(db, handle: Optional[str]):
-    """Find an active tracked Creator whose Twitter handle matches."""
-    if not handle:
-        return None
-    target = handle.lower().lstrip("@")
-    creators = db.query(Creator).filter(Creator.tracking_active == True).all()
-    for creator in creators:
-        for platform in creator.platforms or []:
-            if platform.get("platform") != "twitter":
-                continue
-            candidate = (platform.get("handle") or "").lower().lstrip("@").strip()
-            if candidate == target:
-                return creator
-    return None
 
 
 async def resolve_pending_outcomes():

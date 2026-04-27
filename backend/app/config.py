@@ -29,16 +29,6 @@ class Settings(BaseSettings):
     admin_api_key_env: Optional[str] = None
     allowed_origins: str = "http://localhost:3000"
 
-    # Gmail ingestion (Twitter notification adapter)
-    gmail_credentials_json: Optional[str] = None
-    gmail_credentials_json_env: Optional[str] = None
-    gmail_token_json: Optional[str] = None
-    gmail_token_json_env: Optional[str] = None
-    gmail_label_id: Optional[str] = None
-    gmail_ingestion_enabled: bool = False
-    gmail_ingestion_interval_minutes: int = 10
-    gmail_ingestion_lookback_hours: int = 2
-
     # Scheduler
     scrape_interval_hours: int = 4
     resolve_interval_hours: int = 2
@@ -63,10 +53,6 @@ class Settings(BaseSettings):
             self.the_odds_api_key = os.getenv(self.the_odds_api_key_env)
         if self.admin_api_key_env:
             self.admin_api_key = os.getenv(self.admin_api_key_env)
-        if self.gmail_credentials_json_env:
-            self.gmail_credentials_json = os.getenv(self.gmail_credentials_json_env)
-        if self.gmail_token_json_env:
-            self.gmail_token_json = os.getenv(self.gmail_token_json_env)
 
 
 settings = Settings()
