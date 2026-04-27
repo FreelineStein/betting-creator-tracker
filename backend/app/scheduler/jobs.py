@@ -180,12 +180,19 @@ async def resolve_pending_outcomes():
         # this fallback — for those, we'll later refuse to resolve against
         # games that pre-date the user's submission, since the user almost
         # certainly submitted before the game (not days after).
+        #
+        # Also flag picks whose event_date is already exactly logged_at (sticky
+        # fallback from a previous resolver run): the parser would never emit
+        # an event_date that matches logged_at to the microsecond, so this is a
+        # reliable signal that the original parse missed event_date.
         fallback_pick_ids: set = set()
         for pick in pending:
             if pick.event_date is None and pick.logged_at:
                 pick.event_date = pick.logged_at
                 fallback_pick_ids.add(pick.pick_id)
                 log.info("Using logged_at as event_date fallback", pick_id=pick.pick_id)
+            elif pick.event_date and pick.logged_at and pick.event_date == pick.logged_at:
+                fallback_pick_ids.add(pick.pick_id)
 
         # Filter to picks with past event dates
         pending = [p for p in pending if p.event_date and p.event_date < now]
