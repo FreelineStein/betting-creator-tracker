@@ -389,7 +389,7 @@ def find_matching_game(
     if len(matches) > 1:
         log.warning(
             "Ambiguous game match — multiple games matched, marking for review",
-            event=event,
+            pick_event=event,
             pick_team=pick_team,
             match_count=len(matches),
         )
