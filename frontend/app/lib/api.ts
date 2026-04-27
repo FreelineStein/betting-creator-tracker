@@ -79,3 +79,85 @@ export async function getAllCreatorsWithRecords(): Promise<
   );
   return results.sort((a, b) => (b.record?.win_rate ?? 0) - (a.record?.win_rate ?? 0));
 }
+
+// ---------------------------------------------------------------------------
+// Submissions
+// ---------------------------------------------------------------------------
+
+export interface SubmittedPick {
+  source: string;
+  sport: string | null;
+  event: string | null;
+  pick_type: string;
+  pick_detail: Record<string, unknown>;
+  odds: string | null;
+  confidence: number;
+}
+
+export interface SubmissionSuccess {
+  status: "received" | "already_tracked";
+  message: string;
+  creator: {
+    display_name: string;
+    handle: string;
+    was_new: boolean;
+    pending_review: boolean;
+  } | null;
+  picks_extracted: number;
+  picks: SubmittedPick[];
+}
+
+export class SubmissionError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export async function submitPick(input: {
+  url: string;
+  turnstileToken: string;
+  honeypot: string;
+}): Promise<SubmissionSuccess> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/v1/submissions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: input.url,
+        turnstile_token: input.turnstileToken,
+        website: input.honeypot,
+      }),
+    });
+  } catch {
+    throw new SubmissionError(
+      "We couldn't reach the server. Check your connection and try again.",
+      0,
+    );
+  }
+
+  if (res.ok) {
+    return (await res.json()) as SubmissionSuccess;
+  }
+
+  let detail = "";
+  try {
+    const body = await res.json();
+    detail = typeof body?.detail === "string" ? body.detail : "";
+  } catch {
+    // ignore — we'll fall back to a status-based message
+  }
+
+  if (res.status === 429) {
+    throw new SubmissionError(
+      "You've submitted a lot of picks recently. Please wait an hour before trying again.",
+      429,
+    );
+  }
+  throw new SubmissionError(
+    detail || "Something went wrong. Please try again.",
+    res.status,
+  );
+}
