@@ -35,7 +35,6 @@ SPORT_KEY_MAP = {
 
 # Simple in-memory cache: {sport_key: (timestamp, results)}
 _cache: dict[str, tuple[datetime, list]] = {}
-_upcoming_cache: dict[str, tuple[datetime, list]] = {}
 CACHE_TTL = timedelta(minutes=30)
 
 
@@ -48,16 +47,6 @@ class GameResult:
     home_score: Optional[int]
     away_score: Optional[int]
     completed: bool
-    commence_time: datetime
-
-
-@dataclass
-class UpcomingGame:
-    """A scheduled (not-yet-completed) game — used for opponent enrichment."""
-    game_id: str
-    sport: str
-    home_team: str
-    away_team: str
     commence_time: datetime
 
 
@@ -135,97 +124,6 @@ async def get_completed_games(sport: str, days_back: int = 3) -> list[GameResult
     except Exception as e:
         log.error("Odds API request failed", sport=sport, error=str(e))
         return []
-
-
-async def get_upcoming_games(sport: str) -> list[UpcomingGame]:
-    """
-    Fetch scheduled (not-yet-played) games for a sport, used to fill in the
-    opponent for picks where the creator only named one team.
-
-    Hits /sports/{key}/events which is the cheapest endpoint The Odds API
-    exposes (still counts as 1 request). Cached for 30 minutes per sport.
-    """
-    sport_key = SPORT_KEY_MAP.get(sport.upper())
-    if not sport_key:
-        return []
-    if not settings.the_odds_api_key:
-        log.warning("THE_ODDS_API_KEY not configured — skipping opponent enrichment")
-        return []
-
-    now = datetime.now(timezone.utc)
-    if sport_key in _upcoming_cache:
-        cached_at, cached_results = _upcoming_cache[sport_key]
-        if now - cached_at < CACHE_TTL:
-            return cached_results
-
-    if not check_budget():
-        return []
-
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                f"{BASE_URL}/sports/{sport_key}/events",
-                params={"apiKey": settings.the_odds_api_key},
-            )
-            resp.raise_for_status()
-            events_data = resp.json()
-        record_request()
-    except Exception as e:
-        log.error("Odds API upcoming events request failed", sport=sport, error=str(e))
-        return []
-
-    results = []
-    for event in events_data:
-        try:
-            results.append(UpcomingGame(
-                game_id=event["id"],
-                sport=sport,
-                home_team=event["home_team"],
-                away_team=event["away_team"],
-                commence_time=datetime.fromisoformat(
-                    event["commence_time"].replace("Z", "+00:00")
-                ),
-            ))
-        except (KeyError, ValueError) as e:
-            log.warning("Skipping malformed upcoming event", error=str(e))
-            continue
-
-    _upcoming_cache[sport_key] = (now, results)
-    log.info("Fetched upcoming games", sport=sport, count=len(results))
-    return results
-
-
-def find_opponent(team: str, games: list[UpcomingGame]) -> Optional[tuple[str, datetime]]:
-    """
-    Given a team name (possibly partial like "Cavs"), search the upcoming games
-    for one this team is playing in. Returns (opponent_full_name, commence_time)
-    or None.
-
-    Match strategy: case-insensitive containment in either direction. We pick
-    the soonest match if multiple games involve this team (rare but possible
-    for tournaments).
-    """
-    if not team or not games:
-        return None
-    needle = team.lower().strip()
-    if not needle:
-        return None
-
-    candidates: list[tuple[UpcomingGame, str]] = []  # (game, opponent_full_name)
-    for game in games:
-        home = (game.home_team or "").lower()
-        away = (game.away_team or "").lower()
-        if needle == home or needle in home or home in needle:
-            candidates.append((game, game.away_team))
-        elif needle == away or needle in away or away in needle:
-            candidates.append((game, game.home_team))
-
-    if not candidates:
-        return None
-
-    candidates.sort(key=lambda c: c[0].commence_time)
-    soonest, opponent = candidates[0]
-    return opponent, soonest.commence_time
 
 
 def find_matching_game(

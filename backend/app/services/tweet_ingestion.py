@@ -30,7 +30,7 @@ from app.models import (
 from app.pipeline.parser import ParsedPick, parse_picks
 from app.scrapers.base import RawPost
 from app.scrapers.twitter import extract_image_url, extract_text_from_image
-from app.services.odds_api import find_opponent, get_upcoming_games
+from app.services.espn_stats import find_opponent_in_schedule, get_scheduled_games
 
 log = structlog.get_logger()
 
@@ -230,7 +230,7 @@ async def _enrich_with_opponents(picks: list[ParsedPick]) -> None:
 
     games_by_sport = {}
     for sport in sports_needed:
-        games_by_sport[sport] = await get_upcoming_games(sport)
+        games_by_sport[sport] = await get_scheduled_games(sport)
 
     for pick in picks:
         if pick.sport:
@@ -244,7 +244,7 @@ async def _enrich_with_opponents(picks: list[ParsedPick]) -> None:
                 team = _team_from_leg(leg)
                 if sport and team and _event_needs_opponent(leg.get("event"), team):
                     games = games_by_sport.get(sport, [])
-                    found = find_opponent(team, games)
+                    found = find_opponent_in_schedule(team, games)
                     if found:
                         opponent, _commence = found
                         leg["event"] = f"{team} vs {opponent}"
@@ -289,7 +289,7 @@ def _team_from_leg(leg: dict) -> Optional[str]:
 
 
 def _fill_event_from_lookup(pick: ParsedPick, team: str, games: list) -> None:
-    found = find_opponent(team, games)
+    found = find_opponent_in_schedule(team, games)
     if not found:
         return
     opponent, commence_time = found
