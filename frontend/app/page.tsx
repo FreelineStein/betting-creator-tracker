@@ -14,7 +14,8 @@ export default async function Home() {
     error = true;
   }
 
-  const creators: { creator: any; record: any; picks: Pick[] }[] = [];
+  const featured: { creator: any; record: any; picks: Pick[] }[] = [];
+  const lesserKnown: { creator: any; record: any; picks: Pick[] }[] = [];
 
   if (!error && data.length > 0) {
     const addedIds = new Set<string>();
@@ -23,22 +24,27 @@ export default async function Home() {
       if (addedIds.has(creator.creator_id)) continue;
       addedIds.add(creator.creator_id);
 
-      if (!FEATURED_CREATOR_NAMES.includes(creator.display_name)) continue;
-
       let picks: Pick[] = [];
       try {
         picks = await getCreatorPicks(creator.creator_id);
       } catch {
         // continue with empty picks
       }
-      creators.push({ creator, record, picks });
+
+      if (FEATURED_CREATOR_NAMES.includes(creator.display_name)) {
+        featured.push({ creator, record, picks });
+      } else {
+        lesserKnown.push({ creator, record, picks });
+      }
     }
 
-    creators.sort((a, b) =>
+    featured.sort((a, b) =>
       FEATURED_CREATOR_NAMES.indexOf(a.creator.display_name) -
       FEATURED_CREATOR_NAMES.indexOf(b.creator.display_name)
     );
   }
+
+  const hasAnyCreators = featured.length > 0 || lesserKnown.length > 0;
 
   return (
     <div>
@@ -67,11 +73,27 @@ export default async function Home() {
         </div>
       )}
 
-      {!error && creators.length === 0 && (
+      {!error && !hasAnyCreators && (
         <div className="text-ink-600 text-sm">No creators found.</div>
       )}
 
-      {!error && creators.length > 0 && <CreatorCards creators={creators} />}
+      {!error && featured.length > 0 && (
+        <section>
+          <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-4">
+            Popular Creators
+          </div>
+          <CreatorCards creators={featured} />
+        </section>
+      )}
+
+      {!error && lesserKnown.length > 0 && (
+        <section className="mt-10">
+          <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-4">
+            Lesser Known Creators
+          </div>
+          <CreatorCards creators={lesserKnown} />
+        </section>
+      )}
 
       <p className="text-xs text-ink-600 mt-8">
         Picks sourced from public social media posts. Records update as outcomes are resolved.
