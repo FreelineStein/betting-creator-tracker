@@ -200,7 +200,9 @@ async def get_scheduled_games(
             return cached
 
     if sport_upper == "TENNIS":
-        games = await _fetch_tennis_matches(leagues)
+        games = await _fetch_tennis_matches(
+            leagues, days_back=days_back, days_ahead=days_ahead, now=now,
+        )
     else:
         games = await _fetch_team_sport_games(
             sport, leagues, days_back=days_back, days_ahead=days_ahead, now=now,
@@ -277,29 +279,49 @@ async def _fetch_team_sport_games(
     return games
 
 
-async def _fetch_tennis_matches(leagues: list[tuple[str, str]]) -> list[ScheduledGame]:
+async def _fetch_tennis_matches(
+    leagues: list[tuple[str, str]],
+    days_back: int = 1,
+    days_ahead: int = 5,
+    now: Optional[datetime] = None,
+) -> list[ScheduledGame]:
     """
     Tennis: each scoreboard "event" is a tournament. The actual matches live at
     event.groupings[].competitions[]. Competitors carry an `athlete` block
     instead of `team`. We flatten across men's/women's singles + doubles, plus
     ATP and WTA tours, into one match list.
+
+    Walks a date window so historical match results stay reachable for outcome
+    resolution; the no-param scoreboard endpoint only returns today's slate.
     """
+    if now is None:
+        now = datetime.now(timezone.utc)
+    today = now.date()
+    dates = [
+        (today + timedelta(days=i)).strftime("%Y%m%d")
+        for i in range(-days_back, days_ahead)
+    ]
+
     games: list[ScheduledGame] = []
     seen_ids: set[str] = set()
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             for sport_path, league in leagues:
-                resp = await client.get(f"{BASE_URL}/{sport_path}/{league}/scoreboard")
-                if resp.status_code != 200:
-                    continue
-                data = resp.json()
-                for tournament in data.get("events", []) or []:
-                    for grouping in tournament.get("groupings") or []:
-                        for match in grouping.get("competitions") or []:
-                            parsed = _parse_tennis_match(match)
-                            if parsed and parsed.game_id not in seen_ids:
-                                games.append(parsed)
-                                seen_ids.add(parsed.game_id)
+                for date_str in dates:
+                    resp = await client.get(
+                        f"{BASE_URL}/{sport_path}/{league}/scoreboard",
+                        params={"dates": date_str},
+                    )
+                    if resp.status_code != 200:
+                        continue
+                    data = resp.json()
+                    for tournament in data.get("events", []) or []:
+                        for grouping in tournament.get("groupings") or []:
+                            for match in grouping.get("competitions") or []:
+                                parsed = _parse_tennis_match(match)
+                                if parsed and parsed.game_id not in seen_ids:
+                                    games.append(parsed)
+                                    seen_ids.add(parsed.game_id)
     except Exception as e:
         log.error("ESPN tennis scoreboard fetch failed", error=str(e))
         return []

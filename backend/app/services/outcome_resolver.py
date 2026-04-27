@@ -8,8 +8,27 @@ from datetime import datetime
 from typing import Optional
 from app.models.pick import PickStatus
 from app.services.odds_api import GameResult
+from app.services.espn_stats import ScheduledGame
 
 log = structlog.get_logger()
+
+
+def scheduled_to_game_result(sg: ScheduledGame) -> GameResult:
+    """
+    Convert an ESPN ScheduledGame into a GameResult so the existing
+    resolve_pick / find_matching_game pipeline can consume it without
+    knowing the source. Used by the ESPN-first resolution path.
+    """
+    return GameResult(
+        game_id=sg.game_id,
+        sport=sg.sport,
+        home_team=sg.home_team,
+        away_team=sg.away_team,
+        home_score=sg.home_score,
+        away_score=sg.away_score,
+        completed=sg.completed,
+        commence_time=sg.commence_time,
+    )
 
 
 def resolve_pick(
@@ -100,8 +119,9 @@ async def resolve_prop(
 
 
 def _resolve_moneyline(pick_detail: dict, game: GameResult) -> PickStatus:
-    """Did the picked team win outright?"""
-    team = pick_detail.get("team", "").lower()
+    """Did the picked team (or tennis player) win outright?"""
+    # Tennis picks carry the competitor in `player` rather than `team`.
+    team = (pick_detail.get("team") or pick_detail.get("player") or "").lower()
     if not team:
         return PickStatus.pending
 

@@ -286,7 +286,10 @@ async def resolve_pending_outcomes():
     from app.database import SessionLocal
     from app.models import Pick, PickStatus
     from app.services.odds_api import get_completed_games, find_matching_game, SPORT_KEY_MAP
-    from app.services.outcome_resolver import resolve_pick, resolve_prop, resolve_parlay_legs
+    from app.services.espn_stats import get_completed_games_espn
+    from app.services.outcome_resolver import (
+        resolve_pick, resolve_prop, resolve_parlay_legs, scheduled_to_game_result,
+    )
     from app.services.record_updater import recompute_record
 
     log.info("Checking pending pick outcomes")
@@ -322,49 +325,79 @@ async def resolve_pending_outcomes():
 
         log.info("Found pending picks to resolve", count=len(pending))
 
-        # Group by sport to minimize API calls
-        # For picks with no sport, try searching across all sports
+        # Group by sport to minimize API calls. Tennis has no Odds API coverage in
+        # SPORT_KEY_MAP; route it through ESPN exclusively. Picks with no sport
+        # fall through to the legacy cross-sport search at the bottom.
         picks_by_sport: dict[str, list] = {}
+        tennis_picks: list = []
         unknown_sport_picks: list = []
         for pick in pending:
             if pick.sport and pick.sport in SPORT_KEY_MAP:
                 picks_by_sport.setdefault(pick.sport, []).append(pick)
+            elif pick.sport and pick.sport.upper() == "TENNIS":
+                tennis_picks.append(pick)
             else:
                 unknown_sport_picks.append(pick)
 
         wins = losses = pushes = 0
 
-        # Resolve picks with known sports
+        def _try_match_and_resolve(pick, games: list) -> bool:
+            """
+            Match `pick` against `games` and apply the outcome if found.
+            Returns True if the pick was matched (regardless of resolution),
+            so the caller knows not to retry it against the fallback source.
+            """
+            nonlocal wins, losses, pushes, resolved_count
+            game = find_matching_game(
+                event=pick.event,
+                pick_detail=pick.pick_detail or {},
+                event_date=pick.event_date,
+                games=games,
+            )
+            if not game:
+                return False
+            new_status = resolve_pick(pick.pick_type, pick.pick_detail or {}, game)
+            if new_status != PickStatus.pending:
+                pick.status = new_status
+                pick.outcome_resolved_at = now
+                updated_creators.add(pick.creator_id)
+                resolved_count += 1
+                if new_status == PickStatus.won:
+                    wins += 1
+                elif new_status == PickStatus.lost:
+                    losses += 1
+                elif new_status == PickStatus.push:
+                    pushes += 1
+            return True
+
+        # Resolve picks with known sports — try ESPN's free scoreboard first,
+        # only fall back to The Odds API for picks ESPN couldn't match.
         for sport, sport_picks in picks_by_sport.items():
-            games = await get_completed_games(sport, days_back=3)
-            if not games:
+            espn_raw = await get_completed_games_espn(sport, days_back=3)
+            espn_games = [scheduled_to_game_result(g) for g in espn_raw]
+
+            unmatched = []
+            for pick in sport_picks:
+                if not (espn_games and _try_match_and_resolve(pick, espn_games)):
+                    unmatched.append(pick)
+
+            if not unmatched:
                 continue
 
-            for pick in sport_picks:
-                game = find_matching_game(
-                    event=pick.event,
-                    pick_detail=pick.pick_detail or {},
-                    event_date=pick.event_date,
-                    games=games,
-                )
+            odds_games = await get_completed_games(sport, days_back=3)
+            if not odds_games:
+                continue
+            for pick in unmatched:
+                _try_match_and_resolve(pick, odds_games)
 
-                if not game:
-                    continue
-
-                new_status = resolve_pick(pick.pick_type, pick.pick_detail or {}, game)
-
-                if new_status != PickStatus.pending:
-                    pick.status = new_status
-                    pick.outcome_resolved_at = now
-                    updated_creators.add(pick.creator_id)
-                    resolved_count += 1
-
-                    if new_status == PickStatus.won:
-                        wins += 1
-                    elif new_status == PickStatus.lost:
-                        losses += 1
-                    elif new_status == PickStatus.push:
-                        pushes += 1
+        # Resolve tennis picks via ESPN only — there is no Odds API fallback.
+        if tennis_picks:
+            tennis_raw = await get_completed_games_espn("TENNIS", days_back=5)
+            tennis_games = [scheduled_to_game_result(g) for g in tennis_raw]
+            log.info("Resolving tennis picks via ESPN", count=len(tennis_picks), games=len(tennis_games))
+            for pick in tennis_picks:
+                if tennis_games:
+                    _try_match_and_resolve(pick, tennis_games)
 
         # Resolve picks with unknown sport — search across all sports
         if unknown_sport_picks:

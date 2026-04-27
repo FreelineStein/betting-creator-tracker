@@ -344,8 +344,8 @@ def find_matching_game(
     if not games:
         return None
 
-    # Extract team name from pick detail
-    pick_team = (pick_detail.get("team") or "").lower().strip()
+    # Extract team name from pick detail. Tennis picks carry the competitor in `player`.
+    pick_team = (pick_detail.get("team") or pick_detail.get("player") or "").lower().strip()
 
     # Extract team names from event string ("Chiefs vs Raiders")
     event_teams = set()
