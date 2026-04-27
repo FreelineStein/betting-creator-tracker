@@ -7,6 +7,7 @@ from app.services.espn_stats import (
     _parse_competitor_score,
     _parse_scoreboard_event,
     _parse_tennis_match,
+    team_matches,
 )
 
 
@@ -115,3 +116,41 @@ def test_tennis_match_pregame_has_none_scores():
     assert parsed is not None
     assert parsed.home_score is None
     assert parsed.away_score is None
+
+
+# --- team_matches (shared loose match) ---
+
+def test_team_matches_alias_sixers_to_76ers():
+    # Regression: plain substring previously failed this — "sixers" is not in "philadelphia 76ers".
+    assert team_matches("Sixers", "Philadelphia 76ers") is True
+
+def test_team_matches_alias_cavs_to_cavaliers():
+    assert team_matches("Cavs", "Cleveland Cavaliers") is True
+
+def test_team_matches_alias_avs_to_avalanche():
+    assert team_matches("Avs", "Colorado Avalanche") is True
+
+def test_team_matches_full_name_passes_through():
+    assert team_matches("Boston Celtics", "Boston Celtics") is True
+
+def test_team_matches_word_boundary_blocks_false_positive():
+    # "Li" must not match "Aliassime" — that's the whole reason _word_match exists.
+    assert team_matches("Li", "Aliassime") is False
+
+def test_team_matches_empty_inputs_return_false():
+    assert team_matches("", "Lakers") is False
+    assert team_matches("Lakers", "") is False
+    assert team_matches("", "") is False
+
+def test_team_matches_use_aliases_off():
+    # With aliases disabled, "Sixers" no longer maps to "76ers".
+    assert team_matches("Sixers", "Philadelphia 76ers", use_aliases=False) is False
+
+
+# --- odds_api._team_matches now delegates and inherits alias support ---
+
+def test_odds_api_team_matches_picks_up_alias():
+    from app.services.odds_api import _team_matches
+    # This previously returned False — substring miss. After unification it's True.
+    assert _team_matches("Sixers", "Philadelphia 76ers") is True
+    assert _team_matches("Avs", "Colorado Avalanche") is True

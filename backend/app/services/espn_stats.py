@@ -483,6 +483,20 @@ def _word_match(needle: str, candidate: str) -> bool:
     return bool(_words(n) & _words(c))
 
 
+def team_matches(query: str, candidate: str, *, use_aliases: bool = True) -> bool:
+    """
+    Shared loose team-name match used by both ESPN scoreboard lookups and
+    Odds API resolution. Combines _NICKNAME_ALIASES with whole-word matching
+    so abbreviations like "Cavs", "Sixers", "Avs" resolve to their canonical
+    names without the false positives a plain substring check would produce
+    (e.g. "Li" must not match "Aliassime").
+    """
+    if not query or not candidate:
+        return False
+    needle = _normalize_team_query(query) if use_aliases else query.strip().lower()
+    return _word_match(needle, candidate)
+
+
 def find_opponent_in_schedule(
     team: str, games: list[ScheduledGame]
 ) -> Optional[tuple[str, str, datetime]]:

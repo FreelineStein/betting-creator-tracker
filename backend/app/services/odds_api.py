@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from app.config import settings
+from app.services.espn_stats import team_matches
 from app.services.odds_api_budget import check_budget, record_request
 
 log = structlog.get_logger()
@@ -201,12 +202,12 @@ def _pick_bookmaker(game: dict) -> Optional[dict]:
 
 
 def _team_matches(team: str, candidate: str) -> bool:
-    """Same loose match used for opponent enrichment."""
-    if not team or not candidate:
-        return False
-    a = team.strip().lower()
-    b = candidate.strip().lower()
-    return a == b or a in b or b in a
+    """
+    Loose team-name match shared with ESPN scoreboard lookups via
+    espn_stats.team_matches. Now alias-aware so "Sixers" / "Cavs" / "Avs"
+    resolve to their canonical Odds API team names.
+    """
+    return team_matches(team, candidate)
 
 
 def _find_game_for_team(team: str, games: list[dict]) -> Optional[dict]:
