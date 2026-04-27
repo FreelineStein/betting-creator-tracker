@@ -2,7 +2,7 @@ import { getAllCreatorsWithRecords, getCreatorPicks } from "./lib/api";
 import type { Pick } from "./lib/api";
 import CreatorCards from "./components/CreatorCards";
 
-const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Dr. Locks", "Harry Locks"];
+const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Dr. Locks", "Harry Locks", "Gavin"];
 
 export default async function Home() {
   let data: Awaited<ReturnType<typeof getAllCreatorsWithRecords>> = [];
