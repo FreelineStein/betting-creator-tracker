@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     admin_api_key: Optional[str] = None
     admin_api_key_env: Optional[str] = None
     allowed_origins: str = "http://localhost:3000"
+    turnstile_secret_key: Optional[str] = None
+    turnstile_secret_key_env: Optional[str] = None
 
     # Scheduler
     scrape_interval_hours: int = 4
@@ -53,6 +55,8 @@ class Settings(BaseSettings):
             self.the_odds_api_key = os.getenv(self.the_odds_api_key_env)
         if self.admin_api_key_env:
             self.admin_api_key = os.getenv(self.admin_api_key_env)
+        if self.turnstile_secret_key_env:
+            self.turnstile_secret_key = os.getenv(self.turnstile_secret_key_env)
 
 
 settings = Settings()

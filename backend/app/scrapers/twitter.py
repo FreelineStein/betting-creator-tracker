@@ -8,6 +8,7 @@ Limitation: cannot fetch a user's full timeline — requires tweet URLs to be
 submitted directly. Upgrade to the official Twitter API for automated
 timeline scraping once the product is validated.
 """
+import asyncio
 import re
 import httpx
 import structlog
@@ -19,6 +20,11 @@ from app.scrapers.base import BaseScraper, RawPost
 log = structlog.get_logger()
 
 OEMBED_URL = "https://publish.twitter.com/oembed"
+
+# Cap concurrent oEmbed calls so a burst of anonymous /submissions traffic
+# can't blow through X's free quota in seconds. Process-local — fine for the
+# single-worker Railway deploy; revisit if we scale horizontally.
+_OEMBED_SEMAPHORE = asyncio.Semaphore(4)
 
 
 class TwitterScraper(BaseScraper):
@@ -52,7 +58,8 @@ class TwitterScraper(BaseScraper):
         """Fetch a single tweet via oEmbed and parse into RawPost."""
         normalized_url = tweet_url.replace("https://x.com/", "https://twitter.com/")
 
-        resp = await client.get(OEMBED_URL, params={"url": normalized_url, "omit_script": "true"})
+        async with _OEMBED_SEMAPHORE:
+            resp = await client.get(OEMBED_URL, params={"url": normalized_url, "omit_script": "true"})
         if resp.status_code == 404:
             log.warning("Tweet not found", url=tweet_url)
             return None
