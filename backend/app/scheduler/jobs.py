@@ -148,7 +148,7 @@ async def capture_closing_odds():
 
 async def resolve_pending_outcomes():
     """Check game results and update Pick statuses."""
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
     from app.database import SessionLocal
     from app.models import Pick, PickStatus
     from app.services.odds_api import get_completed_games, find_matching_game, SPORT_KEY_MAP
@@ -175,11 +175,16 @@ async def resolve_pending_outcomes():
             log.info("No pending picks to resolve")
             return
 
-        # For picks without event_date, use logged_at as a proxy
-        # (the pick was likely for a game around the time it was posted)
+        # For picks without event_date, use logged_at as a proxy so the
+        # past-date filter below still admits them. Track which picks rely on
+        # this fallback — for those, we'll later refuse to resolve against
+        # games that pre-date the user's submission, since the user almost
+        # certainly submitted before the game (not days after).
+        fallback_pick_ids: set = set()
         for pick in pending:
             if pick.event_date is None and pick.logged_at:
                 pick.event_date = pick.logged_at
+                fallback_pick_ids.add(pick.pick_id)
                 log.info("Using logged_at as event_date fallback", pick_id=pick.pick_id)
 
         # Filter to picks with past event dates
@@ -222,6 +227,22 @@ async def resolve_pending_outcomes():
             )
             if not game:
                 return False
+            # For picks where event_date came from the logged_at fallback
+            # (parser missed the actual game time), the matched game must
+            # start at or after the user's submission moment — yesterday's
+            # same-team game is almost certainly not what the user picked.
+            if (
+                pick.pick_id in fallback_pick_ids
+                and pick.logged_at
+                and game.commence_time < pick.logged_at - timedelta(hours=6)
+            ):
+                log.info(
+                    "Rejecting fallback match — game pre-dates submission",
+                    pick_id=pick.pick_id,
+                    game_commence=game.commence_time.isoformat(),
+                    logged_at=pick.logged_at.isoformat(),
+                )
+                return True  # treat as matched-not-resolved; don't retry Odds API
             new_status = resolve_pick(pick.pick_type, pick.pick_detail or {}, game)
             if new_status != PickStatus.pending:
                 pick.status = new_status
@@ -314,6 +335,13 @@ async def resolve_pending_outcomes():
                 sport = pick.sport
                 if not sport:
                     continue
+                # Fallback prop picks have no real event_date — find_player_stat
+                # would happily resolve against the player's most recent game,
+                # which may not be the one the user picked. Skip until the
+                # parser supplies a real event_date.
+                if pick.pick_id in fallback_pick_ids:
+                    log.info("Skipping fallback prop — game uncertain", pick_id=pick.pick_id)
+                    continue
                 new_status = await resolve_prop(
                     pick.pick_detail or {},
                     sport,
@@ -338,6 +366,11 @@ async def resolve_pending_outcomes():
         if parlay_picks:
             log.info("Resolving parlay picks per-leg", count=len(parlay_picks))
             for pick in parlay_picks:
+                # Same caution as props: per-leg matching uses event_date, and
+                # for fallback picks that's just the submission time. Skip.
+                if pick.pick_id in fallback_pick_ids:
+                    log.info("Skipping fallback parlay — game uncertain", pick_id=pick.pick_id)
+                    continue
                 updated_detail, new_status = await resolve_parlay_legs(
                     pick.pick_detail or {},
                     pick.event_date,
