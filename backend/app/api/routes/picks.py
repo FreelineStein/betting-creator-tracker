@@ -198,9 +198,16 @@ def update_parlay_leg(
 @router.delete("/{pick_id}")
 @limiter.limit("10/minute")
 def delete_pick(request: Request, pick_id: str, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
+    from app.services.record_updater import recompute_record
+
     pick = db.query(Pick).filter(Pick.pick_id == pick_id).first()
     if not pick:
         raise HTTPException(status_code=404, detail="Pick not found")
+    creator_id = pick.creator_id
     db.delete(pick)
+    db.flush()
+    # Keep W/L consistent — if a resolved pick was deleted, the creator's
+    # totals would otherwise drift until the next scheduled recompute.
+    recompute_record(creator_id, db)
     db.commit()
-    return {"status": "deleted", "pick_id": pick_id}
+    return {"status": "deleted", "pick_id": pick_id, "creator_id": creator_id}
