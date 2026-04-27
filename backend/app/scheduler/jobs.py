@@ -1,5 +1,6 @@
 """
-Background jobs — runs on a schedule to scrape creators and process picks.
+Background jobs — runs on a schedule to resolve outcomes and capture closing odds.
+Submission ingestion is user-driven via /api/v1/submissions; there is no scrape job.
 APScheduler keeps it simple for now. Migrate to Celery when needed.
 """
 import structlog
@@ -14,19 +15,12 @@ scheduler = AsyncIOScheduler()
 
 def setup_scheduler():
     """Register all background jobs."""
-    scrape_hours = getattr(settings, "scrape_interval_hours", 4)
     # Outcome resolution doesn't need to be near-real-time — every 2h keeps
     # us well inside the 450/month Odds API free tier and leaves headroom for
     # the closing-odds capture job below.
     resolve_hours = getattr(settings, "resolve_interval_hours", 2)
     closing_odds_minutes = getattr(settings, "closing_odds_interval_minutes", 30)
 
-    scheduler.add_job(
-        scrape_all_creators,
-        trigger=IntervalTrigger(hours=scrape_hours),
-        id="scrape_creators",
-        replace_existing=True,
-    )
     scheduler.add_job(
         resolve_pending_outcomes,
         trigger=IntervalTrigger(hours=resolve_hours),
@@ -43,149 +37,9 @@ def setup_scheduler():
     scheduler.start()
     log.info(
         "Scheduler started",
-        scrape_interval_hours=scrape_hours,
         resolve_interval_hours=resolve_hours,
         closing_odds_interval_minutes=closing_odds_minutes,
     )
-
-
-def _get_extraction_method(attempts: list[dict]):
-    """Determine which extractor actually succeeded from the attempts log."""
-    from app.models import ExtractionMethod
-    for attempt in attempts:
-        if attempt.get("success") and attempt.get("confidence", 0) >= 0.6:
-            method_name = attempt.get("method", "caption")
-            if method_name in ExtractionMethod.__members__:
-                return ExtractionMethod(method_name)
-    return ExtractionMethod.caption
-
-
-async def scrape_all_creators():
-    """Fetch recent posts for all active tracked creators and run extraction pipeline."""
-    from app.database import SessionLocal
-    from app.models import Creator, CreatorTier
-
-    log.info("Starting creator scrape job")
-    db = SessionLocal()
-    try:
-        creators = db.query(Creator).filter(
-            Creator.tracking_active == True,
-            Creator.tier == CreatorTier.tracked,
-        ).all()
-
-        for creator in creators:
-            for platform_config in (creator.platforms or []):
-                await _scrape_creator_platform(creator, platform_config, db)
-
-    finally:
-        db.close()
-
-
-async def _scrape_creator_platform(creator, platform_config: dict, db):
-    from app.scrapers import SCRAPER_MAP
-    from app.pipeline import run_extraction_pipeline
-    from app.models import Source, ExtractionStatus
-
-    platform = platform_config.get("platform")
-    handle = platform_config.get("handle")
-    if not platform or not handle:
-        return
-
-    # Skip platforms without automated scraping (e.g., Twitter uses oEmbed via manual URL submission)
-    if platform == "twitter":
-        log.info("Skipping Twitter — uses manual URL submission via /scrape/tweets", creator=creator.display_name)
-        return
-
-    if platform == "instagram":
-        log.warning("Instagram scraping not available — skipping", creator=creator.display_name)
-        return
-
-    scraper_cls = SCRAPER_MAP.get(platform)
-    if not scraper_cls:
-        log.warning("No scraper for platform", platform=platform)
-        return
-
-    try:
-        scraper = scraper_cls()
-        posts = await scraper.fetch_recent_posts(handle)
-
-        posts_found = len(posts)
-        picks_extracted = 0
-
-        for post in posts:
-            # Skip if already scraped
-            existing = db.query(Source).filter(Source.post_url == post.post_url).first()
-            if existing:
-                continue
-
-            source = Source(
-                creator_id=creator.creator_id,
-                platform=platform,
-                post_type=post.post_type,
-                post_url=post.post_url,
-                posted_at=post.posted_at,
-            )
-            db.add(source)
-            db.flush()
-
-            # Run extraction pipeline
-            raw_metadata = {
-                "caption": post.caption,
-                "description": post.description,
-                "subtitles": post.subtitles,
-                "video_url": post.video_url,
-                **(post.raw or {}),
-            }
-            extracted_text, attempts = await run_extraction_pipeline(post.post_url, raw_metadata)
-
-            source.raw_content = extracted_text
-            source.extraction_attempts = attempts
-            source.extraction_status = (
-                ExtractionStatus.success if extracted_text else ExtractionStatus.needs_review
-            )
-
-            # Parse extracted text into structured Pick objects
-            if extracted_text:
-                from app.pipeline.parser import parse_picks
-                from app.models import Pick, PickStatus
-
-                parsed_picks = await parse_picks(extracted_text, source_url=post.post_url)
-                for parsed in parsed_picks:
-                    pick = Pick(
-                        source_id=source.source_id,
-                        creator_id=creator.creator_id,
-                        sport=parsed.sport,
-                        event=parsed.event,
-                        event_date=parsed.event_date,
-                        pick_type=parsed.pick_type,
-                        pick_detail=parsed.pick_detail,
-                        odds=parsed.odds,
-                        units=parsed.units,
-                        status=PickStatus.pending,
-                        extraction_method=_get_extraction_method(attempts),
-                        extraction_confidence=parsed.confidence,
-                        raw_text=parsed.raw_text,
-                    )
-                    db.add(pick)
-                    picks_extracted += 1
-
-        db.commit()
-        log.info(
-            "SCRAPE_COMPLETE",
-            creator=creator.display_name,
-            platform=platform,
-            posts_found=posts_found,
-            picks_extracted=picks_extracted,
-        )
-
-    except Exception as e:
-        log.error(
-            "SCRAPER_FAILURE",
-            creator=creator.display_name,
-            platform=platform,
-            error=str(e),
-        )
-        db.rollback()
 
 
 async def capture_closing_odds():

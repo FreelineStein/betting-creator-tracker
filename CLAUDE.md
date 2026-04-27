@@ -40,7 +40,7 @@ betting-creator-tracker/
 │   │   │   ├── instagram.py           # Apify (legacy, not used in submission flow)
 │   │   │   └── reddit.py              # Reddit JSON API (legacy)
 │   │   ├── pipeline/
-│   │   │   ├── pipeline.py            # Older cascade orchestrator (caption→subtitles→whisper→OCR→LLM); only the scrape_all_creators scheduler path uses it
+│   │   │   ├── pipeline.py            # Legacy cascade orchestrator (caption→subtitles→whisper→OCR→LLM); unreachable now that scrape_all_creators is gone — kept as a reference for a future ingestion path
 │   │   │   ├── parser.py              # ParsedPick dataclass + LLM pick parsing (Anthropic / OpenAI fallback)
 │   │   │   └── extractors/            # caption, subtitles, whisper, ocr, llm
 │   │   ├── services/
@@ -53,7 +53,7 @@ betting-creator-tracker/
 │   │   │   ├── odds_api_budget.py     # In-memory monthly request counter (450/month cap)
 │   │   │   └── record_updater.py      # recompute_record(creator_id, db) — derives totals from Pick history
 │   │   └── scheduler/
-│   │       └── jobs.py                # scrape_all_creators (4h, mostly idle now), resolve_pending_outcomes (15m)
+│   │       └── jobs.py                # resolve_pending_outcomes (every 2h, ESPN-first then Odds API fallback) + capture_closing_odds (every 30m)
 │   ├── scripts/                       # Admin / cleanup tools (run with DATABASE_URL set)
 │   │   ├── clear_old_picks.py         # Bulk delete by --before cutoff + recompute records
 │   │   ├── delete_picks.py            # Filter-driven delete (--id / --creator / --team / --event / --sport / --status / --before)

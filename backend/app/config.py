@@ -32,7 +32,6 @@ class Settings(BaseSettings):
     turnstile_secret_key_env: Optional[str] = None
 
     # Scheduler
-    scrape_interval_hours: int = 4
     resolve_interval_hours: int = 2
 
     # App
