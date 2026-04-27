@@ -5,9 +5,8 @@ Used by the anonymous /submissions endpoint: when a user submits a tweet URL
 from a creator we don't already track, we auto-create a Creator record using
 the author metadata returned by Twitter's oEmbed endpoint.
 
-Auto-created creators get tracking_active=False so they don't appear on the
-public list (or get scheduled for scraping) until an admin reviews them.
-This is the "soft gate" that protects W/L records from drive-by additions.
+Auto-created creators are visible by default and surface on the homepage in
+the "Lesser Known Creators" section, separated from the curated featured list.
 """
 from typing import Optional
 
@@ -46,7 +45,8 @@ def find_or_create_creator_by_twitter_handle(
 ) -> tuple[Creator, bool]:
     """
     Resolve a Creator by Twitter handle. If none exists, create one with
-    tracking_active=False so they're hidden from public lists until reviewed.
+    tracking_active=True so they show up immediately in the "Lesser Known
+    Creators" section.
 
     Returns (creator, was_created).
     """
@@ -63,7 +63,7 @@ def find_or_create_creator_by_twitter_handle(
             "handle": f"@{normalized}",
             "url": f"https://x.com/{normalized}",
         }],
-        tracking_active=False,  # soft gate — admin must approve before public
+        tracking_active=True,
     )
     db.add(creator)
     db.flush()
