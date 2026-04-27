@@ -32,6 +32,7 @@ from app.pipeline.parser import ParsedPick, parse_picks
 from app.scrapers.base import RawPost
 from app.scrapers.twitter import extract_image_url, extract_text_from_image
 from app.services.espn_stats import find_opponent_in_schedule, get_scheduled_games
+from app.posthog_client import posthog_client
 
 log = structlog.get_logger()
 
@@ -162,6 +163,24 @@ async def ingest_tweet_for_creator(
         else ExtractionStatus.needs_review if extracted_text
         else ExtractionStatus.failed
     )
+
+    if not parsed_picks and posthog_client:
+        # Platforms attached to the creator give useful signal for diagnosing
+        # extraction gaps. Safe to log because handles are public identifiers.
+        creator_handle = next(
+            (p.get("handle") for p in (creator.platforms or []) if p.get("platform") == "twitter"),
+            None,
+        )
+        posthog_client.capture(
+            distinct_id=creator_handle or creator.creator_id,
+            event="pick extraction failed",
+            properties={
+                "creator_id": creator.creator_id,
+                "extraction_method": extraction_method.value if extraction_method else None,
+                "has_caption": bool(post.caption),
+                "$process_person_profile": False,
+            },
+        )
 
     for parsed in parsed_picks:
         pick = Pick(

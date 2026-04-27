@@ -127,6 +127,18 @@ async def capture_closing_odds():
         if filled:
             db.commit()
         log.info("CLOSING_ODDS_DONE", candidates=len(candidates), filled=filled)
+        if filled:
+            from app.posthog_client import posthog_client
+            if posthog_client:
+                posthog_client.capture(
+                    distinct_id="scheduler",
+                    event="closing odds captured",
+                    properties={
+                        "candidates": len(candidates),
+                        "filled": filled,
+                        "$process_person_profile": False,
+                    },
+                )
     except Exception as e:
         db.rollback()
         log.error("closing_odds_failed", error=str(e))
@@ -362,6 +374,21 @@ async def resolve_pending_outcomes():
             losses=losses,
             pushes=pushes,
         )
+
+        if resolved_count > 0:
+            from app.posthog_client import posthog_client
+            if posthog_client:
+                posthog_client.capture(
+                    distinct_id="scheduler",
+                    event="pick outcome resolved",
+                    properties={
+                        "picks_resolved": resolved_count,
+                        "wins": wins,
+                        "losses": losses,
+                        "pushes": pushes,
+                        "$process_person_profile": False,
+                    },
+                )
 
     except Exception as e:
         log.error("Outcome resolution failed", error=str(e))

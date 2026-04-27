@@ -23,6 +23,9 @@ anthropic==0.34.2
 # Security
 slowapi>=0.1.9
 
+# Analytics
+posthog<7
+
 # Utilities
 python-dotenv==1.0.1
 structlog==24.4.0

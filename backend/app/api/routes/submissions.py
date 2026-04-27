@@ -29,6 +29,7 @@ from app.services.tweet_ingestion import (
     ingest_tweet_for_creator,
 )
 from app.services.turnstile import verify_turnstile_token
+from app.posthog_client import posthog_client
 
 log = structlog.get_logger()
 
@@ -116,8 +117,18 @@ async def submit_pick(
     try:
         result = await ingest_tweet_for_creator(db, post, creator)
         db.commit()
-    except FantasyScorePickRejected:
+    except FantasyScorePickRejected as e:
         db.rollback()
+        if posthog_client:
+            posthog_client.capture(
+                distinct_id=author_handle,
+                event="fantasy pick rejected",
+                properties={
+                    "creator_handle": author_handle,
+                    "prop_count": len(e.descriptions),
+                    "$process_person_profile": False,
+                },
+            )
         raise HTTPException(
             status_code=422,
             detail=(
@@ -133,6 +144,38 @@ async def submit_pick(
             status_code=500,
             detail="Something went wrong while saving your submission. Please try again.",
         )
+
+    if posthog_client:
+        if was_new_creator:
+            posthog_client.capture(
+                distinct_id=author_handle,
+                event="creator discovered",
+                properties={
+                    "creator_handle": author_handle,
+                    "$process_person_profile": False,
+                },
+            )
+        if result.already_tracked:
+            posthog_client.capture(
+                distinct_id=author_handle,
+                event="pick already tracked",
+                properties={
+                    "creator_handle": author_handle,
+                    "picks_count": result.picks_extracted,
+                    "$process_person_profile": False,
+                },
+            )
+        elif result.picks_extracted > 0:
+            posthog_client.capture(
+                distinct_id=author_handle,
+                event="pick submitted",
+                properties={
+                    "creator_handle": author_handle,
+                    "picks_extracted": result.picks_extracted,
+                    "was_new_creator": was_new_creator,
+                    "$process_person_profile": False,
+                },
+            )
 
     return {
         "status": "already_tracked" if result.already_tracked else "received",

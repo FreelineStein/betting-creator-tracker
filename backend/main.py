@@ -23,6 +23,9 @@ async def lifespan(app: FastAPI):
     setup_scheduler()
     yield
     log.info("Shutting down")
+    from app.posthog_client import posthog_client
+    if posthog_client:
+        posthog_client.flush()
 
 
 def _run_migrations():

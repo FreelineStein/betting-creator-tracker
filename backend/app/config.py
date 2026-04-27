@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     turnstile_secret_key: Optional[str] = None
     turnstile_secret_key_env: Optional[str] = None
 
+    # PostHog
+    posthog_api_key: Optional[str] = None
+    posthog_api_key_env: Optional[str] = None
+    posthog_host: str = "https://us.i.posthog.com"
+
     # Scheduler
     resolve_interval_hours: int = 2
 
@@ -56,6 +61,8 @@ class Settings(BaseSettings):
             self.admin_api_key = os.getenv(self.admin_api_key_env)
         if self.turnstile_secret_key_env:
             self.turnstile_secret_key = os.getenv(self.turnstile_secret_key_env)
+        if self.posthog_api_key_env:
+            self.posthog_api_key = os.getenv(self.posthog_api_key_env)
 
 
 settings = Settings()
