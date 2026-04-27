@@ -327,6 +327,11 @@ function PickRow({ pick }: { pick: Pick }) {
         )}
       </div>
       <div className="flex items-center gap-3 text-sm">
+        {pick.event_date && (
+          <span className="font-mono text-[11px] text-ink-400">
+            {formatDate(pick.event_date)}
+          </span>
+        )}
         <span className="font-mono tabular text-ink-400">{pick.odds}</span>
         <span className="font-mono text-[10px] uppercase tracking-label text-white">Pending</span>
       </div>
