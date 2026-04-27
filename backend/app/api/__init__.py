@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from app.api.routes.admin import router as admin_router
 from app.api.routes.creators import router as creators_router
 from app.api.routes.picks import router as picks_router
 from app.api.routes.scrape import router as scrape_router
@@ -11,3 +12,4 @@ api_router.include_router(picks_router)
 api_router.include_router(scrape_router)
 api_router.include_router(health_router)
 api_router.include_router(submissions_router)
+api_router.include_router(admin_router)
