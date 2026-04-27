@@ -3,6 +3,20 @@ const API_URL =
   process.env.API_URL ||
   "http://localhost:8000";
 
+// For client-side fetches: use NEXT_PUBLIC_API_URL if set, else fall back to a
+// relative URL in deployed environments (vercel.json rewrites /api/* to Railway).
+// In local dev the Next dev server doesn't apply vercel.json rewrites, so we
+// hit the FastAPI backend directly on :8000.
+function browserApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window === "undefined") return "http://localhost:8000";
+  const host = window.location.host;
+  if (host.startsWith("localhost") || host.startsWith("127.0.0.1")) {
+    return "http://localhost:8000";
+  }
+  return ""; // relative — the rewrite takes it from here
+}
+
 export interface Creator {
   creator_id: string;
   display_name: string;
@@ -122,7 +136,7 @@ export async function submitPick(input: {
 }): Promise<SubmissionSuccess> {
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/api/v1/submissions`, {
+    res = await fetch(`${browserApiBase()}/api/v1/submissions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
