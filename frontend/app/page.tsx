@@ -79,18 +79,18 @@ export default async function Home() {
 
       {!error && featured.length > 0 && (
         <section>
-          <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-4">
+          <h2 className="font-display font-black text-3xl tracking-display text-white mb-5">
             Popular Creators
-          </div>
+          </h2>
           <CreatorCards creators={featured} />
         </section>
       )}
 
       {!error && lesserKnown.length > 0 && (
-        <section className="mt-10">
-          <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-4">
+        <section className="mt-12">
+          <h2 className="font-display font-black text-3xl tracking-display text-white mb-5">
             Lesser Known Creators
-          </div>
+          </h2>
           <CreatorCards creators={lesserKnown} />
         </section>
       )}
