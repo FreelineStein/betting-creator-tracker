@@ -28,7 +28,7 @@ For each pick found, return a JSON object with this exact structure:
   "picks": [
     {
       "sport": "NFL",              // Sport abbreviation. MUST be one of: NFL, NBA, MLB, NHL, CFB, CBB, MLS, UFC, NCAAF, NCAAB, WNBA, PGA, WBC. Infer from team/league context if not stated explicitly.
-      "event": "Chiefs vs Raiders", // MUST be "Team A vs Team B" format. If only one team is mentioned, infer the opponent from context or use the team name alone.
+      "event": "Chiefs vs Raiders", // Use "Team A vs Team B" format ONLY if both teams are clearly mentioned in the text. If only one team is mentioned, output JUST that team's name (e.g. "Chiefs"). NEVER use placeholders like "Opponent", "TBD", "Unknown", or "Other". The opponent will be looked up downstream.
       "event_date": null,          // ISO date string if mentioned (e.g. "2024-01-15"), otherwise null
       "pick_type": "spread",       // One of: spread, moneyline, over_under, prop, parlay
       "pick_detail": {             // Varies by type:
@@ -50,7 +50,7 @@ Rules:
 - Only extract REAL picks the creator is making, not examples or historical references
 - A pick must have at minimum: pick_type and pick_detail
 - ALWAYS infer the sport. Use team names, league context, and common knowledge to determine the sport. For example: "Venezuela -1.5" during March = WBC (World Baseball Classic). College teams during March = CBB. NFL teams = NFL. Never leave sport as null if you can reasonably infer it.
-- ALWAYS try to format event as "Team A vs Team B". Use your knowledge of current matchups/schedules to infer the opponent when possible.
+- For `event`: only use "Team A vs Team B" when both teams are stated in the text. If only one team is named, return JUST that team — never fabricate an opponent or use a placeholder word like "Opponent". A downstream step will fill in the matchup from a real schedule.
 - PARLAYS: If the creator posted a parlay or same game parlay (SGP), return it as ONE pick with pick_type "parlay" and ALL legs listed in pick_detail.legs. Do NOT also break out the individual legs as separate picks. A parlay is a single bet — return it as a single pick.
 - PARLAY LEGS must be structured objects: {"text": "human-readable description", "type": "spread|moneyline|over_under|prop", "detail": {same schema as pick_detail for that type}, "sport": "NBA", "event": "Team A vs Team B"}. The "text" field is a short human-readable summary. The "type" and "detail" fields follow the same schema as pick_detail for individual picks. Include "sport" and "event" for each leg so they can be resolved independently.
 - Do NOT duplicate picks. If content describes the same bet multiple times (e.g. a summary and then details), only return it once.
