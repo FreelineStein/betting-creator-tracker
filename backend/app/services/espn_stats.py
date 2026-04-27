@@ -1,11 +1,12 @@
 """
 ESPN unofficial API client — fetches per-game player stats for prop resolution.
-Covers NBA, NFL, NHL, MLB with no authentication required.
+Covers NBA, NFL, NHL, MLB, and Tennis (ATP+WTA) with no authentication required.
 
 Endpoints used:
-  - Scoreboard: find games by date → get event IDs
+  - Scoreboard: find games by date → get event IDs (tennis nests matches in groupings)
   - Summary: get box score with individual player stats
 """
+import re
 import httpx
 import structlog
 from datetime import datetime, timedelta, timezone
@@ -27,6 +28,12 @@ LEAGUE_MAP: dict[str, tuple[str, str]] = {
     "NCAAF": ("football", "college-football"),
     "NHL":   ("hockey", "nhl"),
     "MLB":   ("baseball", "mlb"),
+}
+
+# Sports where the ESPN scoreboard lives at multiple league paths and we want
+# games merged across all of them (e.g., tennis = ATP + WTA tours).
+_MULTI_LEAGUE_SCOREBOARD: dict[str, list[tuple[str, str]]] = {
+    "TENNIS": [("tennis", "atp"), ("tennis", "wta")],
 }
 
 # Map prop stat names to ESPN box score label names per sport
@@ -169,11 +176,18 @@ async def get_scheduled_games(
     the game and a user may submit it after the game has started or even
     finished. ESPN serves both upcoming and completed games on the same
     scoreboard endpoint. No auth, no quota.
+
+    For sports with multiple ESPN tour paths (e.g. tennis ATP + WTA), all
+    paths are fetched and merged. Tennis is special-cased — its scoreboard
+    returns tournaments, with the actual matches nested inside groupings.
     """
-    league_info = LEAGUE_MAP.get(sport.upper())
-    if not league_info:
-        return []
-    sport_path, league = league_info
+    sport_upper = sport.upper()
+    leagues = _MULTI_LEAGUE_SCOREBOARD.get(sport_upper)
+    if not leagues:
+        single = LEAGUE_MAP.get(sport_upper)
+        if not single:
+            return []
+        leagues = [single]
 
     cache_key = f"{sport}:{days_back}:{days_ahead}"
     now = datetime.now(timezone.utc)
@@ -182,38 +196,122 @@ async def get_scheduled_games(
         if now - cached_at < _SCHEDULED_CACHE_TTL:
             return cached
 
+    if sport_upper == "TENNIS":
+        games = await _fetch_tennis_matches(leagues)
+    else:
+        games = await _fetch_team_sport_games(
+            sport, leagues, days_back=days_back, days_ahead=days_ahead, now=now,
+        )
+
+    _scheduled_cache[cache_key] = (now, games)
+    log.info("Fetched ESPN scheduled games", sport=sport, count=len(games))
+    return games
+
+
+async def _fetch_team_sport_games(
+    sport: str,
+    leagues: list[tuple[str, str]],
+    days_back: int,
+    days_ahead: int,
+    now: datetime,
+) -> list[ScheduledGame]:
     today = now.date()
     dates = [
         (today + timedelta(days=i)).strftime("%Y%m%d")
         for i in range(-days_back, days_ahead)
     ]
-
     games: list[ScheduledGame] = []
     seen_ids: set[str] = set()
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            for date_str in dates:
-                resp = await client.get(
-                    f"{BASE_URL}/{sport_path}/{league}/scoreboard",
-                    params={"dates": date_str},
-                )
-                if resp.status_code != 200:
-                    continue
-                data = resp.json()
-                for event in data.get("events", []) or []:
-                    if event.get("id") in seen_ids:
+            for sport_path, league in leagues:
+                for date_str in dates:
+                    resp = await client.get(
+                        f"{BASE_URL}/{sport_path}/{league}/scoreboard",
+                        params={"dates": date_str},
+                    )
+                    if resp.status_code != 200:
                         continue
-                    parsed = _parse_scoreboard_event(event, sport)
-                    if parsed:
-                        games.append(parsed)
-                        seen_ids.add(parsed.game_id)
+                    data = resp.json()
+                    for event in data.get("events", []) or []:
+                        if event.get("id") in seen_ids:
+                            continue
+                        parsed = _parse_scoreboard_event(event, sport)
+                        if parsed:
+                            games.append(parsed)
+                            seen_ids.add(parsed.game_id)
     except Exception as e:
         log.error("ESPN scoreboard fetch failed", sport=sport, error=str(e))
         return []
-
-    _scheduled_cache[cache_key] = (now, games)
-    log.info("Fetched ESPN scheduled games", sport=sport, count=len(games))
     return games
+
+
+async def _fetch_tennis_matches(leagues: list[tuple[str, str]]) -> list[ScheduledGame]:
+    """
+    Tennis: each scoreboard "event" is a tournament. The actual matches live at
+    event.groupings[].competitions[]. Competitors carry an `athlete` block
+    instead of `team`. We flatten across men's/women's singles + doubles, plus
+    ATP and WTA tours, into one match list.
+    """
+    games: list[ScheduledGame] = []
+    seen_ids: set[str] = set()
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            for sport_path, league in leagues:
+                resp = await client.get(f"{BASE_URL}/{sport_path}/{league}/scoreboard")
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                for tournament in data.get("events", []) or []:
+                    for grouping in tournament.get("groupings") or []:
+                        for match in grouping.get("competitions") or []:
+                            parsed = _parse_tennis_match(match)
+                            if parsed and parsed.game_id not in seen_ids:
+                                games.append(parsed)
+                                seen_ids.add(parsed.game_id)
+    except Exception as e:
+        log.error("ESPN tennis scoreboard fetch failed", error=str(e))
+        return []
+    return games
+
+
+def _parse_tennis_match(match: dict) -> Optional[ScheduledGame]:
+    competitors = match.get("competitors") or []
+    if len(competitors) < 2:
+        return None
+
+    def athlete_names(c: dict) -> tuple[str, str]:
+        a = c.get("athlete") or {}
+        full = a.get("displayName") or a.get("fullName") or ""
+        short = full.split()[-1] if full else (a.get("shortName") or "")
+        return full, short
+
+    p1_full, p1_short = athlete_names(competitors[0])
+    p2_full, p2_short = athlete_names(competitors[1])
+    if not p1_full or not p2_full:
+        return None
+
+    raw_date = match.get("date") or match.get("startDate")
+    if not raw_date:
+        return None
+    try:
+        commence = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    status = (match.get("status") or {}).get("type") or {}
+    completed = status.get("name") == "STATUS_FINAL"
+
+    return ScheduledGame(
+        game_id=match.get("id", ""),
+        sport="TENNIS",
+        home_team=p1_full,
+        home_short=p1_short,
+        away_team=p2_full,
+        away_short=p2_short,
+        commence_time=commence,
+        completed=completed,
+    )
 
 
 def _parse_scoreboard_event(event: dict, sport: str) -> Optional[ScheduledGame]:
@@ -225,19 +323,24 @@ def _parse_scoreboard_event(event: dict, sport: str) -> Optional[ScheduledGame]:
     if len(competitors) < 2:
         return None
 
+    # Most leagues label competitors with home/away. Tennis (and a few other
+    # individual-sport ESPN feeds) don't — fall back to first/second order so
+    # we still capture the matchup.
     home = next((c for c in competitors if c.get("homeAway") == "home"), None)
     away = next((c for c in competitors if c.get("homeAway") == "away"), None)
     if not home or not away:
-        return None
+        home, away = competitors[0], competitors[1]
 
     def team_names(c: dict) -> tuple[str, str]:
-        team = c.get("team") or {}
-        full = team.get("displayName") or team.get("name") or ""
-        short = team.get("name") or team.get("shortDisplayName") or full
+        team = c.get("team") or c.get("athlete") or {}
+        full = team.get("displayName") or team.get("name") or team.get("shortName") or ""
+        short = team.get("shortDisplayName") or team.get("name") or full
         return full, short
 
     home_full, home_short = team_names(home)
     away_full, away_short = team_names(away)
+    if not home_full or not away_full:
+        return None
 
     raw_date = event.get("date")
     if not raw_date:
@@ -322,12 +425,35 @@ def _normalize_team_query(name: str) -> str:
     return _NICKNAME_ALIASES.get(n, n)
 
 
+def _words(s: str) -> set[str]:
+    """Split a name into lowercase words on whitespace and hyphens."""
+    return {w for w in re.split(r"[\s\-]+", s.strip().lower()) if w}
+
+
+def _word_match(needle: str, candidate: str) -> bool:
+    """
+    True if needle and candidate share a whole word (case-insensitive),
+    or are exactly equal. Stricter than substring: "Medvedev" no longer
+    matches "Medvedeva" (wrong word), and "Li" no longer matches the
+    word "Aliassime".
+    """
+    if not needle or not candidate:
+        return False
+    n = needle.strip().lower()
+    c = candidate.strip().lower()
+    if not n or not c:
+        return False
+    if n == c:
+        return True
+    return bool(_words(n) & _words(c))
+
+
 def find_opponent_in_schedule(
     team: str, games: list[ScheduledGame]
 ) -> Optional[tuple[str, str, datetime]]:
     """
-    Given a team name like "Cavs" or "Cleveland Cavaliers", find the
-    matching scheduled game.
+    Given a team or player name like "Cavs", "Cleveland Cavaliers", or
+    "Medvedev", find the matching scheduled game.
 
     Returns (matched_team_canonical, opponent_canonical, commence_time).
     Both names are the ESPN "short" form (e.g. "Avalanche", "Cavaliers")
@@ -335,8 +461,8 @@ def find_opponent_in_schedule(
 
     Match strategy (in order of preference):
       1. exact match on full or short name
-      2. resolve common abbreviations via _NICKNAME_ALIASES, then containment
-      3. substring containment in either direction
+      2. resolve common abbreviations via _NICKNAME_ALIASES, then word match
+      3. word-boundary match (any shared whole word, case-insensitive)
     Picks the soonest matching game when several exist.
     """
     if not team or not games:
@@ -352,15 +478,7 @@ def find_opponent_in_schedule(
             (game.home_team, game.home_short, game.away_team, game.away_short),
             (game.away_team, game.away_short, game.home_team, game.home_short),
         ]:
-            full_l = full.lower()
-            short_l = short.lower()
-            if (
-                needle == full_l
-                or needle == short_l
-                or needle in full_l
-                or needle in short_l
-                or short_l in needle
-            ):
+            if _word_match(needle, full) or _word_match(needle, short):
                 candidates.append((game, short, opponent_short))
                 break
 

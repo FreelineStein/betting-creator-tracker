@@ -19,7 +19,7 @@ from app.config import settings
 log = structlog.get_logger()
 
 # Sports we recognize
-KNOWN_SPORTS = {"NFL", "NBA", "MLB", "NHL", "CFB", "CBB", "MLS", "UFC", "NCAAF", "NCAAB", "WNBA", "PGA", "WBC"}
+KNOWN_SPORTS = {"NFL", "NBA", "MLB", "NHL", "CFB", "CBB", "MLS", "UFC", "NCAAF", "NCAAB", "WNBA", "PGA", "WBC", "TENNIS"}
 
 PARSE_PROMPT = """You are a sports betting pick extractor. Extract ALL betting picks from the text below.
 
@@ -27,7 +27,7 @@ For each pick found, return a JSON object with this exact structure:
 {
   "picks": [
     {
-      "sport": "NFL",              // Sport abbreviation. MUST be one of: NFL, NBA, MLB, NHL, CFB, CBB, MLS, UFC, NCAAF, NCAAB, WNBA, PGA, WBC. Infer from team/league context if not stated explicitly.
+      "sport": "NFL",              // Sport abbreviation. MUST be one of: NFL, NBA, MLB, NHL, CFB, CBB, MLS, UFC, NCAAF, NCAAB, WNBA, PGA, WBC, TENNIS. Infer from team/league context if not stated explicitly. PGA is golf only; tennis players (Medvedev, Gauff, Aliassime, Sinner, Alcaraz, Sabalenka, Swiatek, etc., on the ATP/WTA tours) MUST be tagged TENNIS, not PGA.
       "event": "Chiefs vs Raiders", // Use "Team A vs Team B" format ONLY if both teams are clearly mentioned in the text. If only one team is mentioned, output JUST that team's name (e.g. "Chiefs"). NEVER use placeholders like "Opponent", "TBD", "Unknown", or "Other". The opponent will be looked up downstream.
       "event_date": null,          // ISO date string if mentioned (e.g. "2024-01-15"), otherwise null
       "pick_type": "spread",       // One of: spread, moneyline, over_under, prop, parlay
@@ -207,6 +207,7 @@ def _fuzzy_sport(sport_str: str) -> Optional[str]:
         "HOCKEY": "NHL", "COLLEGE FOOTBALL": "CFB", "COLLEGE BASKETBALL": "CBB",
         "SOCCER": "MLS", "GOLF": "PGA", "MMA": "UFC",
         "WORLD BASEBALL CLASSIC": "WBC", "WORLD BASEBALL": "WBC",
+        "ATP": "TENNIS", "WTA": "TENNIS", "ITF": "TENNIS",
     }
     return mappings.get(sport_str.upper())
 
