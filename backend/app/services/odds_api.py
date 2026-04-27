@@ -35,7 +35,14 @@ SPORT_KEY_MAP = {
 
 # Simple in-memory cache: {sport_key: (timestamp, results)}
 _cache: dict[str, tuple[datetime, list]] = {}
+_odds_cache: dict[str, tuple[datetime, list]] = {}
 CACHE_TTL = timedelta(minutes=30)
+ODDS_CACHE_TTL = timedelta(hours=6)  # lines move during the day, but for a tracker the morning snapshot is fine
+
+# Bookmaker preference for the odds returned by /sports/{key}/odds. We pick the
+# first one available in this order so the displayed price stays consistent
+# across submissions. "Any other book" is the final fallback.
+_BOOKMAKER_PRIORITY = ("draftkings", "fanduel", "betmgm", "caesars")
 
 
 @dataclass
@@ -124,6 +131,203 @@ async def get_completed_games(sport: str, days_back: int = 3) -> list[GameResult
     except Exception as e:
         log.error("Odds API request failed", sport=sport, error=str(e))
         return []
+
+
+async def get_odds_for_sport(sport: str) -> list[dict]:
+    """
+    Fetch upcoming games + bookmaker prices for a sport. Used to fill in the
+    `odds` field on picks where the LLM didn't extract a price from the post.
+
+    Hits /sports/{key}/odds?regions=us&markets=h2h,spreads,totals — one
+    request returns every upcoming game with all three markets. Cached for
+    six hours per sport, gated by the same monthly budget guard as the
+    completed-scores call.
+
+    Returns the raw API payload (a list of dicts) — callers walk it via
+    find_odds_for_pick(...) below.
+    """
+    sport_key = SPORT_KEY_MAP.get(sport.upper())
+    if not sport_key:
+        return []
+    if not settings.the_odds_api_key:
+        log.warning("THE_ODDS_API_KEY not configured — skipping odds enrichment")
+        return []
+
+    now = datetime.now(timezone.utc)
+    if sport_key in _odds_cache:
+        cached_at, cached = _odds_cache[sport_key]
+        if now - cached_at < ODDS_CACHE_TTL:
+            return cached
+
+    if not check_budget():
+        return []
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{BASE_URL}/sports/{sport_key}/odds",
+                params={
+                    "apiKey": settings.the_odds_api_key,
+                    "regions": "us",
+                    "markets": "h2h,spreads,totals",
+                    "oddsFormat": "american",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        record_request()
+    except Exception as e:
+        log.error("Odds API odds request failed", sport=sport, error=str(e))
+        return []
+
+    _odds_cache[sport_key] = (now, data)
+    log.info("Fetched odds slate", sport=sport, count=len(data))
+    return data
+
+
+def _format_american(price: int) -> str:
+    return f"+{price}" if price > 0 else str(price)
+
+
+def _pick_bookmaker(game: dict) -> Optional[dict]:
+    bookmakers = game.get("bookmakers") or []
+    if not bookmakers:
+        return None
+    by_key = {b.get("key"): b for b in bookmakers}
+    for preferred in _BOOKMAKER_PRIORITY:
+        if preferred in by_key:
+            return by_key[preferred]
+    return bookmakers[0]
+
+
+def _team_matches(team: str, candidate: str) -> bool:
+    """Same loose match used for opponent enrichment."""
+    if not team or not candidate:
+        return False
+    a = team.strip().lower()
+    b = candidate.strip().lower()
+    return a == b or a in b or b in a
+
+
+def _find_game_for_team(team: str, games: list[dict]) -> Optional[dict]:
+    """Return the soonest game where `team` is one of the participants."""
+    matches = [
+        g for g in games
+        if _team_matches(team, g.get("home_team") or "")
+        or _team_matches(team, g.get("away_team") or "")
+    ]
+    if not matches:
+        return None
+    matches.sort(key=lambda g: g.get("commence_time") or "")
+    return matches[0]
+
+
+def find_odds_for_pick(
+    team: Optional[str],
+    pick_type: str,
+    pick_detail: dict,
+    games: list[dict],
+) -> Optional[str]:
+    """
+    Walk a /odds response and return the American-odds string for the pick,
+    or None if no matching market is available.
+
+    - moneyline → outcomes.h2h matching team name
+    - spread    → outcomes.spreads where outcome.point matches the parsed line
+    - over_under→ outcomes.totals where outcome.name in {Over, Under} and
+                  outcome.point matches the parsed total
+    """
+    if pick_type == "parlay":
+        return None  # parlay-leg odds aren't shown at the parent level
+    if not games:
+        return None
+
+    if pick_type in ("moneyline", "spread"):
+        if not team:
+            return None
+        game = _find_game_for_team(team, games)
+    elif pick_type == "over_under":
+        # Need event/team context to pick the right game; over/under picks
+        # in our model carry the totals number but not always a team. We
+        # match via any team name in pick_detail or rely on the caller.
+        team_for_lookup = team or pick_detail.get("team")
+        if not team_for_lookup:
+            return None
+        game = _find_game_for_team(str(team_for_lookup), games)
+    else:
+        return None  # props handled separately, not here
+
+    if not game:
+        return None
+
+    book = _pick_bookmaker(game)
+    if not book:
+        return None
+
+    markets = {m.get("key"): m for m in (book.get("markets") or [])}
+
+    if pick_type == "moneyline":
+        market = markets.get("h2h")
+        if not market:
+            return None
+        for outcome in market.get("outcomes") or []:
+            if _team_matches(team, outcome.get("name") or ""):
+                price = outcome.get("price")
+                if price is not None:
+                    return _format_american(int(price))
+        return None
+
+    if pick_type == "spread":
+        market = markets.get("spreads")
+        if not market:
+            return None
+        line = pick_detail.get("line")
+        try:
+            target_point = float(str(line).replace("+", "")) if line is not None else None
+        except (ValueError, TypeError):
+            target_point = None
+        for outcome in market.get("outcomes") or []:
+            if not _team_matches(team, outcome.get("name") or ""):
+                continue
+            if target_point is None:
+                price = outcome.get("price")
+                if price is not None:
+                    return _format_american(int(price))
+                continue
+            point = outcome.get("point")
+            if point is not None and abs(float(point) - target_point) < 0.01:
+                price = outcome.get("price")
+                if price is not None:
+                    return _format_american(int(price))
+        return None
+
+    if pick_type == "over_under":
+        market = markets.get("totals")
+        if not market:
+            return None
+        direction = (pick_detail.get("direction") or "").strip().lower()
+        total = pick_detail.get("total")
+        try:
+            target_point = float(str(total)) if total is not None else None
+        except (ValueError, TypeError):
+            target_point = None
+        for outcome in market.get("outcomes") or []:
+            outcome_name = (outcome.get("name") or "").strip().lower()
+            if direction and outcome_name != direction:
+                continue
+            if target_point is None:
+                price = outcome.get("price")
+                if price is not None:
+                    return _format_american(int(price))
+                continue
+            point = outcome.get("point")
+            if point is not None and abs(float(point) - target_point) < 0.01:
+                price = outcome.get("price")
+                if price is not None:
+                    return _format_american(int(price))
+        return None
+
+    return None
 
 
 def find_matching_game(

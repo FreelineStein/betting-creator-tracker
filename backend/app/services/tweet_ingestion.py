@@ -31,6 +31,7 @@ from app.pipeline.parser import ParsedPick, parse_picks
 from app.scrapers.base import RawPost
 from app.scrapers.twitter import extract_image_url, extract_text_from_image
 from app.services.espn_stats import find_opponent_in_schedule, get_scheduled_games
+from app.services.odds_api import find_odds_for_pick, get_odds_for_sport
 
 log = structlog.get_logger()
 
@@ -98,6 +99,7 @@ async def ingest_tweet_for_creator(
 
     if parsed_picks:
         await _enrich_with_opponents(parsed_picks)
+        await _enrich_with_odds(parsed_picks)
 
     source.raw_content = extracted_text
     source.extraction_status = (
@@ -306,3 +308,46 @@ def _fill_event_from_lookup(pick: ParsedPick, team: str, games: list) -> None:
     # use the game's commence time so outcome resolution can match later.
     if pick.event_date is None:
         pick.event_date = commence_time
+
+
+# ---------------------------------------------------------------------------
+# Odds enrichment
+# ---------------------------------------------------------------------------
+
+async def _enrich_with_odds(picks: list[ParsedPick]) -> None:
+    """
+    Fill in `pick.odds` for picks where the LLM parser didn't find a price
+    in the post text. Calls The Odds API once per sport that needs lookup.
+
+    Self-throttles via odds_api.check_budget() — when the monthly budget is
+    near zero the lookup quietly returns None and the pick stays unpriced
+    rather than blowing the 450/month free-tier cap.
+
+    Skips parlays (parlay-level odds usually come from the post itself).
+    """
+    sports_needed = {
+        p.sport for p in picks
+        if p.sport
+        and p.odds is None
+        and p.pick_type in ("moneyline", "spread", "over_under")
+    }
+    if not sports_needed:
+        return
+
+    odds_by_sport: dict[str, list[dict]] = {}
+    for sport in sports_needed:
+        odds_by_sport[sport] = await get_odds_for_sport(sport)
+
+    for pick in picks:
+        if pick.odds is not None or pick.sport not in odds_by_sport:
+            continue
+        team = (pick.pick_detail or {}).get("team") if isinstance(pick.pick_detail, dict) else None
+        odds = find_odds_for_pick(
+            team=team,
+            pick_type=pick.pick_type,
+            pick_detail=pick.pick_detail or {},
+            games=odds_by_sport[pick.sport],
+        )
+        if odds:
+            pick.odds = odds
+            log.info("odds_filled", sport=pick.sport, team=team, odds=odds, pick_type=pick.pick_type)

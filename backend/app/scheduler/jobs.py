@@ -15,7 +15,10 @@ scheduler = AsyncIOScheduler()
 def setup_scheduler():
     """Register all background jobs."""
     scrape_hours = getattr(settings, "scrape_interval_hours", 4)
-    resolve_minutes = getattr(settings, "resolve_interval_minutes", 15)
+    # Outcome resolution doesn't need to be near-real-time — every 2h keeps
+    # us well inside the 450/month Odds API free tier and leaves headroom for
+    # the new submit-time odds enrichment.
+    resolve_hours = getattr(settings, "resolve_interval_hours", 2)
 
     # Scrape tracked creators
     scheduler.add_job(
@@ -28,7 +31,7 @@ def setup_scheduler():
     # Resolve pending pick outcomes
     scheduler.add_job(
         resolve_pending_outcomes,
-        trigger=IntervalTrigger(minutes=resolve_minutes),
+        trigger=IntervalTrigger(hours=resolve_hours),
         id="resolve_outcomes",
         replace_existing=True,
     )
@@ -37,7 +40,7 @@ def setup_scheduler():
     log.info(
         "Scheduler started",
         scrape_interval_hours=scrape_hours,
-        resolve_interval_minutes=resolve_minutes,
+        resolve_interval_hours=resolve_hours,
     )
 
 
