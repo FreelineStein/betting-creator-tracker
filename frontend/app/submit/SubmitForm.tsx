@@ -324,6 +324,7 @@ function SuccessPanel({
                 {" · via "}
                 {p.source}
               </div>
+              {p.pick_type === "parlay" && <ParlayLegs detail={p.pick_detail} />}
             </li>
           ))}
         </ul>
@@ -359,5 +360,49 @@ function formatPickDetail(p: { pick_type: string; pick_detail: Record<string, un
       return `${(d.legs as unknown[] | undefined)?.length ?? 0}-leg parlay`;
     default:
       return p.pick_type;
+  }
+}
+
+type Leg = {
+  text?: string;
+  type?: string;
+  detail?: Record<string, unknown>;
+  sport?: string;
+  event?: string;
+};
+
+function ParlayLegs({ detail }: { detail: Record<string, unknown> }) {
+  const legs = (detail?.legs as Leg[] | undefined) ?? [];
+  if (legs.length === 0) return null;
+  return (
+    <ol className="mt-3 space-y-1.5 border-l-2 border-ink-800 pl-3">
+      {legs.map((leg, i) => (
+        <li key={i} className="text-xs text-ink-200 leading-snug">
+          <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 mr-2">
+            {leg.sport ?? "—"}
+          </span>
+          <span className="text-white">{leg.text || formatLeg(leg)}</span>
+          {leg.event && (
+            <span className="text-ink-600 ml-1.5">· {leg.event}</span>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function formatLeg(leg: Leg): string {
+  const d = leg.detail ?? {};
+  switch (leg.type) {
+    case "spread":
+      return `${d.team ?? ""} ${d.line ?? ""}`.trim();
+    case "moneyline":
+      return `${d.team ?? ""} ML`.trim();
+    case "over_under":
+      return `${d.direction ?? "Over"} ${d.total ?? ""}`.trim();
+    case "prop":
+      return `${d.player ?? ""} ${d.direction ?? "Over"} ${d.line ?? ""} ${d.prop ?? ""}`.trim();
+    default:
+      return leg.type ?? "leg";
   }
 }
