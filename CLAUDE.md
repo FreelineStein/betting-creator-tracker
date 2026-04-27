@@ -1,15 +1,16 @@
-# CLAUDE.md — Betting Creator Tracker
+# CLAUDE.md — PickReceipts (Betting Creator Tracker)
 
 ## Project Goal
 
-Track sports betting creators across social media. Scrape their posts, extract picks via a cascading pipeline, build transparent W/L records, and surface tail/fade signals weighted by historical accuracy.
+Track sports betting creators across social media. Ingest their public posts, extract picks via an LLM-driven pipeline, build transparent W/L records, and surface tail/fade signals weighted by historical accuracy.
 
 ## Stack
 
 - **Backend:** Python 3 + FastAPI + SQLAlchemy + PostgreSQL
-- **Frontend:** Next.js (deployed on Vercel)
+- **Frontend:** Next.js 14 (App Router) + Tailwind, deployed on Vercel
 - **Infra:** Railway (backend + Postgres), Vercel (frontend)
-- **Scheduler:** APScheduler (planned migration to Celery)
+- **Scheduler:** APScheduler (in-process, fine for the single-worker MVP deploy)
+- **Anti-spam (submissions):** Cloudflare Turnstile + slowapi rate limit + honeypot + URL regex
 
 ## Project Structure
 
@@ -18,129 +19,181 @@ betting-creator-tracker/
 ├── backend/
 │   ├── main.py                        # FastAPI app entry point
 │   ├── app/
-│   │   ├── config.py                  # Settings from env vars
+│   │   ├── config.py                  # Settings from env vars (env-var indirection pattern)
 │   │   ├── models/
-│   │   │   ├── creator.py             # Creator profile + tier + platforms JSON
-│   │   │   ├── source.py              # Scraped post record (platform, URL, raw content)
-│   │   │   ├── pick.py                # Individual pick (sport, type, detail, status)
+│   │   │   ├── creator.py             # Creator profile + tier + platforms JSON + tracking_active
+│   │   │   ├── source.py              # One ingested post — platform, post_url (unique), raw_content
+│   │   │   ├── pick.py                # One bet — sport, type, detail, status, extraction_method
 │   │   │   └── record.py              # Aggregated W/L/push record per creator
-│   │   ├── api/routes/                # FastAPI route handlers
+│   │   ├── api/
+│   │   │   ├── deps.py                # require_admin (Bearer token check)
+│   │   │   └── routes/
+│   │   │       ├── submissions.py     # POST /submissions — anonymous user pick submission (Turnstile + rate-limit + honeypot)
+│   │   │       ├── scrape.py          # POST /scrape/tweets — admin batch URL submission
+│   │   │       ├── creators.py        # CRUD + record recompute
+│   │   │       ├── picks.py           # CRUD + parlay leg updates; DELETE recomputes record
+│   │   │       ├── admin.py           # POST /admin/reprocess-url — re-run a URL through current pipeline
+│   │   │       └── health.py          # /health/status + manual /resolve trigger
 │   │   ├── scrapers/
 │   │   │   ├── base.py                # RawPost dataclass + BaseScraper ABC
-│   │   │   ├── twitter.py             # Apify twitter-scraper actor
-│   │   │   ├── instagram.py           # Apify instagram-reel-scraper actor
-│   │   │   └── reddit.py              # Reddit public JSON API
+│   │   │   ├── twitter.py             # oEmbed via publish.twitter.com + fxtwitter image extraction + Claude vision OCR; concurrency-bounded
+│   │   │   ├── instagram.py           # Apify (legacy, not used in submission flow)
+│   │   │   └── reddit.py              # Reddit JSON API (legacy)
 │   │   ├── pipeline/
-│   │   │   ├── pipeline.py            # Cascade orchestrator (confidence threshold 0.6)
-│   │   │   ├── caption.py             # CaptionExtractor — text from caption/description
-│   │   │   ├── subtitles.py           # SubtitleExtractor — auto-captions/transcripts
-│   │   │   ├── whisper.py             # WhisperExtractor — faster-whisper on video audio
-│   │   │   ├── ocr.py                 # OCRExtractor — easyocr on video frames via ffmpeg
-│   │   │   ├── llm.py                 # LLMExtractor — last-resort LLM summarization
-│   │   │   └── parser.py              # ParsedPick output + LLM pick parsing
+│   │   │   ├── pipeline.py            # Older cascade orchestrator (caption→subtitles→whisper→OCR→LLM); only the scrape_all_creators scheduler path uses it
+│   │   │   ├── parser.py              # ParsedPick dataclass + LLM pick parsing (Anthropic / OpenAI fallback)
+│   │   │   └── extractors/            # caption, subtitles, whisper, ocr, llm
 │   │   ├── services/
-│   │   │   ├── outcome_resolver.py    # Determines W/L/push from game scores
-│   │   │   ├── record_updater.py      # Recomputes CreatorRecord from pick history
-│   │   │   └── odds_api.py            # The Odds API client for game scores
+│   │   │   ├── tweet_ingestion.py     # Shared per-tweet flow: caption→image-OCR→parse→opponent enrichment→DB writes
+│   │   │   ├── creator_lookup.py      # find_or_create_creator_by_twitter_handle (auto-create with tracking_active=False)
+│   │   │   ├── turnstile.py           # Cloudflare Turnstile siteverify
+│   │   │   ├── espn_stats.py          # ESPN scoreboard + box-score client; opponent enrichment via get_scheduled_games + find_opponent_in_schedule; nickname alias map
+│   │   │   ├── outcome_resolver.py    # spread/moneyline/over_under via The Odds API; props via ESPN; per-leg parlay
+│   │   │   ├── odds_api.py            # The Odds API client (completed game scores)
+│   │   │   ├── odds_api_budget.py     # In-memory monthly request counter (450/month cap)
+│   │   │   └── record_updater.py      # recompute_record(creator_id, db) — derives totals from Pick history
 │   │   └── scheduler/
-│   │       └── jobs.py                # scrape_all_creators (2h), resolve_pending_outcomes (30m)
+│   │       └── jobs.py                # scrape_all_creators (4h, mostly idle now), resolve_pending_outcomes (15m)
+│   ├── scripts/                       # Admin / cleanup tools (run with DATABASE_URL set)
+│   │   ├── clear_old_picks.py         # Bulk delete by --before cutoff + recompute records
+│   │   ├── delete_picks.py            # Filter-driven delete (--id / --creator / --team / --event / --sport / --status / --before)
+│   │   ├── seed.py                    # Seed initial creators
+│   │   ├── cleanup_creators.py
+│   │   └── migrate_to_real_data.py
 │   ├── migrations/                    # Alembic
 │   ├── tests/
-│   ├── seed.py
 │   └── requirements.txt
-└── frontend/                          # Next.js app
+└── frontend/
     ├── app/
-    ├── components/
-    └── package.json
+    │   ├── page.tsx                   # Homepage — creator cards (filtered to active picks)
+    │   ├── creators/[id]/page.tsx     # Creator detail (full pick history)
+    │   ├── submit/                    # /submit — anonymous URL submission form
+    │   │   ├── page.tsx               # Server shell, reads NEXT_PUBLIC_TURNSTILE_SITE_KEY
+    │   │   └── SubmitForm.tsx         # Client form + Turnstile widget + honeypot + success panel
+    │   ├── lib/api.ts                 # Typed API client (incl. submitPick)
+    │   └── components/
+    │       ├── CreatorCards.tsx       # Homepage card with isActive filter
+    │       └── ...
+    └── components/
+        ├── Logo.tsx
+        └── brand.tsx                  # Button, Badge, StatCard, WLRecord
 ```
 
 ## Data Flow
 
 ```
-Scheduler (every 2h)
-  → Scraper (platform-specific) → RawPost
-    → Extraction Pipeline (cascade: caption → subtitles → whisper → OCR → LLM)
-      → Parser (LLM call) → ParsedPick
-        → DB: Source + Pick records
+USER SUBMISSION (primary ingestion path)
+  User pastes X URL on /submit
+    → Turnstile + URL regex + honeypot + 10/hr per-IP rate limit
+      → POST /api/v1/submissions
+        → TwitterScraper.fetch_tweets() via publish.twitter.com/oembed
+          → find_or_create_creator_by_twitter_handle (soft-gate new creators)
+            → ingest_tweet_for_creator:
+                  caption → if no picks, fxtwitter image URL → Claude vision OCR
+                    → parse_picks (Claude Haiku / GPT-4o-mini fallback)
+                      → enrich opponents via ESPN scoreboard (free, no quota)
+                        → DB: Source + Pick rows
 
-Scheduler (every 30m)
-  → Query pending picks with past event_date
-    → The Odds API (game scores)
-      → Outcome Resolver (W/L/push)
-        → Record Updater (recompute CreatorRecord)
+SCHEDULER (every 15m)
+  resolve_pending_outcomes
+    → pending picks with past event_date
+      → The Odds API (spread/moneyline/over_under) + ESPN box scores (props) + per-leg parlay resolution
+        → outcome_resolver → record_updater
 ```
 
 ## Key Data Models
 
-- **Creator**: profile, tier (tracked/public), platforms JSON array, tracking_active flag
-- **Source**: one scraped post — platform, post_url (unique), raw_content, extraction_status/attempts
-- **Pick**: one bet — sport, event, pick_type (spread/moneyline/over_under/prop/parlay), pick_detail JSON, odds, units, status (pending/won/lost/push/void), extraction_method, confidence
-- **CreatorRecord**: 1-to-1 with Creator — wins, losses, pushes, win_rate, roi, accuracy_by_sport JSON
+- **Creator** — profile, tier (`tracked` / `public`), platforms JSON, profile_image_url, **tracking_active** (auto-created creators land at `False` and are hidden from public lists / scheduler until approved)
+- **Source** — one ingested post; `post_url` is the dedup key; `extraction_status` ∈ {pending, success, failed, needs_review}
+- **Pick** — one bet; `pick_type` ∈ {spread, moneyline, over_under, prop, parlay}; parlay `pick_detail.legs[]` are independently resolvable
+- **CreatorRecord** — 1-to-1 with Creator; rebuild from Pick history via `recompute_record`
 
-## Scraper Architecture
+## Submission Flow Anti-spam
 
-All scrapers implement `BaseScraper.fetch_recent_posts(handle, since) → list[RawPost]`.
+Layered defense, in order of cost (cheapest fail-fast first):
 
-`RawPost` is the normalized interchange format: platform, post_type, post_url, posted_at, caption, description, subtitles, video_url, raw metadata.
+1. **Honeypot field** — hidden form input named `website`. Real users never fill it; bots that auto-fill all fields will. Non-empty value returns silent 200 without processing.
+2. **URL regex** — strict match on `https?://(www\.|mobile\.)?(twitter\.com|x\.com)/<handle>/status/<digits>`. Rejects fxtwitter proxies, off-platform links, malformed URLs.
+3. **slowapi rate limit** — `@limiter.limit("10/hour")` per IP. In-memory; fine for the single-worker Railway deploy.
+4. **Cloudflare Turnstile** — server-side token verification against the secret key. Frontend renders the widget; backend POSTs to `challenges.cloudflare.com/turnstile/v0/siteverify`.
+5. **Authoritative live fetch** — oEmbed call itself. If X returns 404 or no parseable text, the submission is rejected with a friendly error.
 
-| Platform  | Method                        | Status      |
-|-----------|-------------------------------|-------------|
-| Twitter/X | Apify `twitter-scraper`       | Implemented |
-| Instagram | Apify `instagram-reel-scraper`| Implemented |
-| Reddit    | Public JSON API               | Implemented |
-| YouTube   | YouTube Data API              | Not started |
-| TikTok    | Apify or unofficial API       | Not started |
+## Opponent Resolution
 
-## Extraction Pipeline
+After parsing, picks where the parser only captured one team (e.g., post says "Cavs ML") get enriched via ESPN's free scoreboard:
 
-Cascading design — tries extractors cheapest-first, stops when confidence ≥ 0.6:
-
-1. **CaptionExtractor** (0.5–1.0) — regex keyword scoring on caption/description text
-2. **SubtitleExtractor** (0.8) — auto-captions or transcript fields
-3. **WhisperExtractor** (0.85) — faster-whisper transcription of video audio via yt-dlp
-4. **OCRExtractor** (0.7) — easyocr on video frames extracted by ffmpeg at 1fps
-5. **LLMExtractor** (0.5–1.0) — last resort, gathers all available text and calls LLM
-
-Parser uses Claude Haiku (or GPT-4o-mini fallback) to structure extracted text into `ParsedPick` objects.
+- `get_scheduled_games(sport, days_back=1, days_ahead=5)` walks today ±1/+4 days
+- `find_opponent_in_schedule(team, games)` matches via case-insensitive containment + a curated `_NICKNAME_ALIASES` map (Cavs→Cavaliers, Mavs→Mavericks, Avs→Avalanche, Sixers→76ers, Habs→Canadiens, etc.)
+- On success, `pick_detail.team` is normalized to the canonical short name and `event` is set to "<Team> vs <Opponent>"; `event_date` defaults to the game's commence_time when the parser missed it
+- Misses log a `team_alias_miss` warning so we can see what aliases to add
 
 ## Outcome Resolution
 
-- **Moneyline, Spread, Over/Under**: Fully implemented via The Odds API scores
-- **Props**: Not yet implemented (needs player stats API)
-- **Parlays**: Not yet implemented (needs leg-by-leg resolution)
-- ROI calculated as percentage points above 52.4% break-even (standard -110 juice)
+| Pick type    | Resolver | Notes |
+|--------------|----------|-------|
+| Spread       | The Odds API completed scores | `find_matching_game` via team-name containment |
+| Moneyline    | The Odds API completed scores | |
+| Over/Under   | The Odds API completed scores | |
+| Prop         | ESPN box score (`espn_stats.find_player_stat`) | NBA/NFL/NHL/MLB; combo props supported |
+| Parlay       | Per-leg, then aggregated by `_parlay_status_from_legs` | A single losing leg loses the parlay |
+
+ROI is reported as percentage points above the −110 break-even rate (52.4%).
+
+## Admin Tooling
+
+All admin operations require `Authorization: Bearer $ADMIN_API_KEY`.
+
+- **`POST /api/v1/admin/reprocess-url`** body `{"url": "..."}` — fetches the tweet, deletes existing Source+Picks for that URL (any twitter.com/x.com variant), re-ingests under the current pipeline, recomputes the creator's record. Use after any parser/enrichment/alias improvement to retroactively apply.
+- **`DELETE /api/v1/picks/{id}`** — single pick delete; recomputes the creator's record after.
+- **`backend/scripts/delete_picks.py`** — filter-driven CLI: `--id`, `--creator-id`, `--creator-name`, `--team`, `--event`, `--sport`, `--pick-type`, `--status`, `--before`, `--after`. Refuses to run with no filter. Always `--dry-run` first.
+- **`backend/scripts/clear_old_picks.py`** — bulk delete picks before a UTC cutoff, deletes orphaned sources, recomputes affected records.
 
 ## External Services & API Keys
 
-| Service        | Env Var               | Used For                          |
-|----------------|----------------------|-----------------------------------|
-| Anthropic      | `ANTHROPIC_API_KEY`  | Pick parsing (claude-haiku-4-5)   |
-| OpenAI         | `OPENAI_API_KEY`     | Fallback for parsing              |
-| Apify          | `APIFY_API_TOKEN`    | Twitter + Instagram scraping      |
-| The Odds API   | `THE_ODDS_API_KEY`   | Game scores for outcome resolution|
-| Reddit         | Public API (no auth) | Reddit scraping                   |
-| YouTube        | `YOUTUBE_API_KEY`    | Future YouTube scraper            |
+| Service        | Env Var (`*_ENV` indirection used everywhere) | Used For                                   |
+|----------------|-----------------------------------------------|--------------------------------------------|
+| Anthropic      | `ANTHROPIC_API_KEY`                           | Pick parsing (claude-haiku-4-5) + image OCR |
+| OpenAI         | `OPENAI_API_KEY`                              | Parser fallback                            |
+| Apify          | `APIFY_API_TOKEN`                             | Legacy scrapers (Instagram/Reddit; not used by submissions) |
+| The Odds API   | `THE_ODDS_API_KEY`                            | Outcome resolution (450/month budget)      |
+| ESPN           | none — public                                  | Opponent enrichment + prop box scores      |
+| Cloudflare     | `TURNSTILE_SECRET_KEY` (server) / `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend) | Submission anti-spam |
+| Admin          | `ADMIN_API_KEY`                               | Bearer auth for write endpoints            |
 
-System tools required: `yt-dlp`, `ffmpeg`, `faster-whisper`, `easyocr`.
+System tools required for the legacy video pipeline (only on the scheduler path, not the submission path): `yt-dlp`, `ffmpeg`, `faster-whisper`, `easyocr`.
+
+CORS allowlist: `ALLOWED_ORIGINS` (comma-separated). Production includes `https://pickreceipts.com` and `https://www.pickreceipts.com`.
 
 ## Known Gaps
 
-- YouTube and TikTok scrapers not yet built
-- Props and parlay outcome resolution not yet implemented
-- Extraction method tracking is hardcoded to `caption` in jobs.py (should pass through from pipeline)
-- Failed extraction notifications are log-only (no webhook/Discord integration)
-- Pipeline not yet battle-tested on real diverse content across platforms
+- YouTube and TikTok ingestion not implemented (would each need a scraper + auth)
+- Submission rate-limit / Turnstile budget are in-memory; both reset on every Railway redeploy. Fine at MVP scale.
+- `team_alias_miss` log is the only feedback loop for missing nicknames — no automated alias generation
+- No admin UI; admin work happens via curl + admin key or via me running the scripts when prompted
+- LLM-based opponent inference for completed games not in ESPN's window will fail silently (returns no opponent fill-in)
+- Auto-created creators sit at `tracking_active=False` indefinitely until manually flipped — no notification flow for review
 
 ## Commands
 
 ```bash
-# Backend
+# Backend (assumes venv created from requirements.txt)
 cd backend && source venv/bin/activate
-uvicorn main:app --reload
-alembic upgrade head          # run migrations
-pytest tests/                 # run tests
+uvicorn main:app --reload          # local dev server on :8000
+alembic upgrade head               # run migrations
+pytest tests/                      # run tests
+
+# Backend admin scripts (run against Railway with public DATABASE_URL)
+DATABASE_URL='postgresql://...@caboose.proxy.rlwy.net:.../railway' \
+  ./venv/bin/python -m scripts.delete_picks --team Lakers --dry-run
+DATABASE_URL='...' ./venv/bin/python -m scripts.clear_old_picks --before "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" --yes
+
+# Reprocess a URL through the current pipeline
+curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v1/admin/reprocess-url \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://x.com/handle/status/..."}'
 
 # Frontend
 cd frontend
-npm run dev
+npm run dev                        # localhost:3000 — uses test Turnstile keys by default
 ```
