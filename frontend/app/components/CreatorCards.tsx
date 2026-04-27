@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePostHog } from "posthog-js/react";
 import type { Pick } from "../lib/api";
 import { Badge, WLRecord } from "../../components/brand";
 
@@ -114,6 +115,7 @@ interface CreatorCardData {
 }
 
 export default function CreatorCards({ creators }: { creators: CreatorCardData[] }) {
+  const posthog = usePostHog();
   return (
     <div className="space-y-6">
       {creators.map(({ creator, record, picks }) => {
@@ -154,6 +156,14 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
                         href={p.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={() =>
+                          posthog?.capture("platform_link_clicked", {
+                            creator_id: creator.creator_id,
+                            creator_name: creator.display_name,
+                            platform: p.platform,
+                            url: p.url,
+                          })
+                        }
                         className="font-mono text-[11px] text-ink-400 hover:text-signal transition-colors"
                       >
                         {PLATFORM_ICONS[p.platform] ?? "🔗"} {p.handle}
@@ -265,6 +275,13 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
                   <div className="px-6 py-2.5 border-t border-ink-800/60">
                     <Link
                       href={`/creators/${creator.creator_id}`}
+                      onClick={() =>
+                        posthog?.capture("creator_card_clicked", {
+                          creator_id: creator.creator_id,
+                          creator_name: creator.display_name,
+                          source: "active_picks_link",
+                        })
+                      }
                       className="font-mono text-[11px] uppercase tracking-label text-signal hover:text-signal/80 transition-colors"
                     >
                       View all {activePicks.length} active picks →
@@ -283,6 +300,13 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
               <div className="px-6 py-2.5 border-t border-ink-800/60">
                 <Link
                   href={`/creators/${creator.creator_id}`}
+                  onClick={() =>
+                    posthog?.capture("creator_card_clicked", {
+                      creator_id: creator.creator_id,
+                      creator_name: creator.display_name,
+                      source: "full_history_link",
+                    })
+                  }
                   className="font-mono text-[11px] uppercase tracking-label text-signal hover:text-signal/80 transition-colors"
                 >
                   Full history ({picks.length} picks) →

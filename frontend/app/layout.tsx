@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed, IBM_Plex_Mono } from "next/font/google";
 import Link from "next/link";
+import { Analytics } from "@vercel/analytics/react";
 import { Logo } from "../components/Logo";
+import { PostHogProvider } from "./components/PostHogProvider";
+import { PostHogPageview } from "./components/PostHogPageview";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -46,23 +49,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${barlow.variable} ${barlowCondensed.variable} ${plexMono.variable}`}
     >
       <body className="bg-pitch text-white min-h-screen font-sans">
-        <nav className="border-b border-ink-800 bg-pitch">
-          <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-            <Logo height={48} icon={false} />
-            <div className="flex items-center gap-5">
-              <Link
-                href="/submit"
-                className="font-mono text-[10px] uppercase tracking-label text-ink-400 hover:text-signal transition-colors"
-              >
-                Submit a pick
-              </Link>
-              <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 hidden sm:inline">
-                Real records · No excuses
-              </span>
+        <PostHogProvider>
+          <PostHogPageview />
+          <nav className="border-b border-ink-800 bg-pitch">
+            <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+              <Logo height={48} icon={false} />
+              <div className="flex items-center gap-5">
+                <Link
+                  href="/submit"
+                  className="font-mono text-[10px] uppercase tracking-label text-ink-400 hover:text-signal transition-colors"
+                >
+                  Submit a pick
+                </Link>
+                <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 hidden sm:inline">
+                  Real records · No excuses
+                </span>
+              </div>
             </div>
-          </div>
-        </nav>
-        <main className="max-w-5xl mx-auto px-6 py-8">{children}</main>
+          </nav>
+          <main className="max-w-5xl mx-auto px-6 py-8">{children}</main>
+        </PostHogProvider>
+        <Analytics />
       </body>
     </html>
   );

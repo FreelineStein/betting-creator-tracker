@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
+import { usePostHog } from "posthog-js/react";
 import { Button } from "../../components/brand";
 import { submitPick, SubmissionError, type SubmissionSuccess } from "../lib/api";
 
@@ -53,6 +54,8 @@ export default function SubmitForm({
   const [turnstileReady, setTurnstileReady] = useState(false);
   const [turnstileLoadFailed, setTurnstileLoadFailed] = useState(false);
 
+  const posthog = usePostHog();
+
   // If the Turnstile script doesn't load within a sensible window (network
   // blocked, ad-blocker, Cloudflare unreachable), tell the user instead of
   // leaving them stuck on "Loading verification…".
@@ -102,18 +105,23 @@ export default function SubmitForm({
     e.preventDefault();
     if (state.kind === "submitting") return;
 
+    posthog?.capture("submission_started");
+
     const trimmed = url.trim();
     if (!trimmed) {
+      posthog?.capture("submission_validation_failed", { reason: "empty" });
       setUrlError("Paste a link to the X post.");
       return;
     }
     if (!TWEET_URL_PATTERN.test(trimmed)) {
+      posthog?.capture("submission_validation_failed", { reason: "invalid_format" });
       setUrlError("That doesn't look like an X post URL. Example: https://x.com/handle/status/123…");
       return;
     }
     setUrlError(null);
 
     if (!turnstileTokenRef.current) {
+      posthog?.capture("submission_turnstile_blocked");
       setState({
         kind: "idle",
         error: "Please complete the verification check before submitting.",
@@ -129,11 +137,19 @@ export default function SubmitForm({
         honeypot,
       });
       setState({ kind: "success", result });
+      posthog?.capture("submission_succeeded", {
+        picks_extracted: result.picks_extracted,
+        already_tracked: result.status === "already_tracked",
+        creator_handle: result.creator?.handle,
+      });
     } catch (err) {
       const message =
         err instanceof SubmissionError
           ? err.message
           : "Something went wrong. Please try again.";
+      posthog?.capture("submission_failed", {
+        error_type: err instanceof SubmissionError ? "api_error" : "network_error",
+      });
       // Reset Turnstile so the user can retry — tokens are single-use.
       if (window.turnstile && turnstileWidgetIdRef.current) {
         window.turnstile.reset(turnstileWidgetIdRef.current);
@@ -146,7 +162,13 @@ export default function SubmitForm({
   if (state.kind === "success") {
     return (
       <>
-        <SuccessPanel result={state.result} onSubmitAnother={resetForm} />
+        <SuccessPanel
+          result={state.result}
+          onSubmitAnother={() => {
+            posthog?.capture("submission_another_clicked");
+            resetForm();
+          }}
+        />
         {/* Keep the Turnstile script cached for the next submission */}
         <Script
           src={TURNSTILE_SCRIPT_SRC}
