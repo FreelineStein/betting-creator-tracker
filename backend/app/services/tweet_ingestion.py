@@ -111,6 +111,8 @@ async def ingest_tweet_for_creator(
     db: Session,
     post: RawPost,
     creator: Creator,
+    *,
+    enforce_pinning: bool = True,
 ) -> TweetIngestionResult:
     """
     Persist a fetched tweet as Source + Pick rows for `creator`.
@@ -118,6 +120,13 @@ async def ingest_tweet_for_creator(
     Caller is responsible for:
       - Calling db.commit() (we only flush)
       - Rolling back on exception
+
+    `enforce_pinning` (default True): when True, submissions where any
+    pick can't be pinned to a scheduled ESPN game are routed to
+    needs_review with no Pick rows created. The admin /approve flow
+    overrides this to False to log the picks even when ESPN coverage
+    is missing — those picks fall through to the resolver's legacy
+    fuzzy-match path.
 
     Returns a TweetIngestionResult so callers can shape user-facing responses.
     """
@@ -174,7 +183,14 @@ async def ingest_tweet_for_creator(
     # don't create any Pick rows. Half-pinned submissions would otherwise
     # leak unresolvable picks into the records, exactly the class of bug the
     # event_id refactor is meant to eliminate.
-    needs_review_for_unpinned = bool(parsed_picks) and not _all_picks_pinned(parsed_picks)
+    #
+    # `enforce_pinning=False` is the admin override path (POST /admin/sources/
+    # {id}/approve): admin has eyeballed the parked source and decided to log
+    # the picks anyway, so unpinned picks fall through to the legacy fuzzy
+    # resolver branch.
+    needs_review_for_unpinned = (
+        enforce_pinning and bool(parsed_picks) and not _all_picks_pinned(parsed_picks)
+    )
     if needs_review_for_unpinned:
         source.extraction_status = ExtractionStatus.needs_review
         result.needs_review = True

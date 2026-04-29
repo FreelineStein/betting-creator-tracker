@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
 from app.database import get_db
-from app.models import Creator, Pick, Source
+from app.models import Creator, ExtractionStatus, Pick, Source
 from app.scrapers.twitter import TwitterScraper
 from app.services.creator_lookup import find_or_create_creator_by_twitter_handle
 from app.services.record_updater import recompute_record
@@ -158,4 +158,172 @@ async def reprocess_url(
         "new_pick_count": result.picks_extracted,
         "already_tracked": result.already_tracked,
         "picks": result.picks,
+    }
+
+
+# ---------------------------------------------------------------------------
+# needs_review queue
+# ---------------------------------------------------------------------------
+
+@router.get("/needs-review")
+@limiter.limit("60/minute")
+async def list_needs_review(
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+):
+    """
+    List sources parked at extraction_status=needs_review.
+
+    These are submissions where parsing succeeded but at least one pick
+    couldn't be pinned to a scheduled ESPN game (or, on legacy data,
+    where extraction produced no picks but text was present). No Pick
+    rows exist for them yet; admin reviews and either approves (force-
+    ingest without the pinning gate) or deletes.
+    """
+    sources = (
+        db.query(Source)
+        .filter(Source.extraction_status == ExtractionStatus.needs_review)
+        .order_by(Source.scraped_at.asc())
+        .all()
+    )
+    out = []
+    for s in sources:
+        creator = (
+            db.query(Creator).filter(Creator.creator_id == s.creator_id).first()
+        )
+        out.append({
+            "source_id": s.source_id,
+            "post_url": s.post_url,
+            "posted_at": s.posted_at.isoformat() if s.posted_at else None,
+            "scraped_at": s.scraped_at.isoformat() if s.scraped_at else None,
+            "raw_content": s.raw_content,
+            "extraction_attempts": s.extraction_attempts,
+            "creator": {
+                "creator_id": creator.creator_id if creator else None,
+                "display_name": creator.display_name if creator else None,
+                "tracking_active": creator.tracking_active if creator else None,
+            },
+        })
+    return {"count": len(out), "sources": out}
+
+
+@router.post("/sources/{source_id}/approve")
+@limiter.limit("30/minute")
+async def approve_source(
+    request: Request,
+    source_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+):
+    """
+    Force-ingest a needs_review source, bypassing the pinning gate.
+
+    Re-fetches the tweet (so this works even if the DB only has
+    partial state), runs the current parser + enrichment, and creates
+    Pick rows for every parsed pick — even ones without `event_id`.
+    Unpinned picks fall through to the resolver's legacy fuzzy-match
+    branch.
+    """
+    source = db.query(Source).filter(Source.source_id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found.")
+    if source.extraction_status != ExtractionStatus.needs_review:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Source is not in needs_review (current: "
+                f"{source.extraction_status.value}); refusing to approve."
+            ),
+        )
+
+    creator = db.query(Creator).filter(Creator.creator_id == source.creator_id).first()
+    if not creator:
+        raise HTTPException(status_code=500, detail="Source has no creator.")
+
+    scraper = TwitterScraper()
+    posts = await scraper.fetch_tweets([source.post_url])
+    if not posts:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not refetch the tweet — it may be deleted, private, or the URL changed.",
+        )
+    post = posts[0]
+
+    # The existing source row will be deleted-and-replaced by
+    # ingest_tweet_for_creator's "source exists with zero picks" branch.
+    try:
+        result = await ingest_tweet_for_creator(
+            db, post, creator, enforce_pinning=False,
+        )
+    except FantasyScorePickRejected as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail=f"Fantasy-score picks are not tracked: {', '.join(e.descriptions)}",
+        )
+    except Exception as e:
+        db.rollback()
+        log.error("admin_approve_ingest_failed", source_id=source_id, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail="Approval failed during ingestion. Source untouched — try again.",
+        )
+
+    recompute_record(creator.creator_id, db)
+    db.commit()
+
+    return {
+        "source_id": source_id,
+        "url": post.post_url,
+        "creator": {
+            "creator_id": creator.creator_id,
+            "display_name": creator.display_name,
+        },
+        "new_pick_count": result.picks_extracted,
+        "picks": result.picks,
+    }
+
+
+@router.delete("/sources/{source_id}")
+@limiter.limit("30/minute")
+async def delete_source(
+    request: Request,
+    source_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+):
+    """
+    Drop a parked source (and any picks attached, defensively).
+
+    Only accepts sources currently at needs_review — for general source
+    deletion use the picks-side cleanup scripts. Recomputes the creator's
+    record afterward, since attached picks (if any) influenced totals.
+    """
+    source = db.query(Source).filter(Source.source_id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found.")
+    if source.extraction_status != ExtractionStatus.needs_review:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Source is not in needs_review (current: "
+                f"{source.extraction_status.value}); refusing to delete via this endpoint."
+            ),
+        )
+
+    creator_id = source.creator_id
+    deleted_picks = (
+        db.query(Pick).filter(Pick.source_id == source.source_id)
+        .delete(synchronize_session=False)
+    )
+    db.delete(source)
+    db.flush()
+    if creator_id:
+        recompute_record(creator_id, db)
+    db.commit()
+
+    return {
+        "source_id": source_id,
+        "deleted_picks": deleted_picks,
     }
