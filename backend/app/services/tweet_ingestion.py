@@ -96,6 +96,14 @@ class TweetIngestionResult:
     picks_extracted: int = 0
     picks: list[dict] = field(default_factory=list)
     error: Optional[str] = None
+    # True when picks were parsed but at least one couldn't be pinned to a
+    # scheduled ESPN game. The Source is logged with extraction_status
+    # `needs_review`, no Pick rows are created, and the user is told their
+    # submission is awaiting review.
+    needs_review: bool = False
+    # Human-readable list of picks the user submitted, even when nothing was
+    # logged — so the review-pending UI can show what the parser saw.
+    unpinned_picks: list[dict] = field(default_factory=list)
 
 
 async def ingest_tweet_for_creator(
@@ -159,6 +167,24 @@ async def ingest_tweet_for_creator(
         await _enrich_with_odds(parsed_picks)
 
     source.raw_content = extracted_text
+
+    # Hard gate: if we parsed picks but couldn't pin every one of them to a
+    # scheduled ESPN game, route the whole submission to needs_review and
+    # don't create any Pick rows. Half-pinned submissions would otherwise
+    # leak unresolvable picks into the records, exactly the class of bug the
+    # event_id refactor is meant to eliminate.
+    needs_review_for_unpinned = bool(parsed_picks) and not _all_picks_pinned(parsed_picks)
+    if needs_review_for_unpinned:
+        source.extraction_status = ExtractionStatus.needs_review
+        result.needs_review = True
+        result.unpinned_picks = _summarize_unpinned_picks(parsed_picks)
+        log.info(
+            "submission_unpinned_routed_to_review",
+            url=post.post_url,
+            picks_parsed=len(parsed_picks),
+        )
+        return result
+
     source.extraction_status = (
         ExtractionStatus.success if parsed_picks
         else ExtractionStatus.needs_review if extracted_text
@@ -190,6 +216,8 @@ async def ingest_tweet_for_creator(
             sport=parsed.sport,
             event=parsed.event,
             event_date=parsed.event_date,
+            event_id=parsed.event_id,
+            event_provider=parsed.event_provider,
             pick_type=parsed.pick_type,
             pick_detail=parsed.pick_detail,
             odds=parsed.odds,
@@ -329,21 +357,28 @@ async def _enrich_with_odds(picks: list[ParsedPick]) -> None:
 
 async def _enrich_with_opponents(picks: list[ParsedPick]) -> None:
     """
-    For picks where the parser only captured one team (or wrote a placeholder
-    like "Cavs vs Opponent"), look up the matchup in The Odds API and fill it
-    in. Mutates picks in place. Also enriches parlay legs.
+    Pin every pick (and parlay leg) to a specific scheduled ESPN game.
 
-    Groups by sport so we make at most one upcoming-games request per sport.
+    For each pick with sport + team we hit the ESPN scoreboard window
+    (today ±1 / +5 days) and, on a match, persist `event_id` + `event_provider`
+    so outcome resolution becomes a direct lookup. We also fill in opponent
+    when the parser only captured one team, and adopt the game's commence
+    time as `event_date` if missing.
+
+    Groups by sport so we make at most one scoreboard request per sport.
+
+    Picks that don't match any scheduled game are left with `event_id = None`;
+    `_all_picks_pinned` detects that and the caller routes the submission to
+    needs_review rather than creating an unresolvable Pick row.
     """
     sports_needed: set[str] = set()
     for pick in picks:
-        if pick.sport and _event_needs_opponent(pick.event, _team_from_pick(pick)):
+        if pick.sport and _team_from_pick(pick):
             sports_needed.add(pick.sport)
         if pick.pick_type == "parlay":
             for leg in (pick.pick_detail or {}).get("legs", []) or []:
                 sport = leg.get("sport")
-                team = _team_from_leg(leg)
-                if sport and _event_needs_opponent(leg.get("event"), team):
+                if sport and _team_from_leg(leg):
                     sports_needed.add(sport)
 
     if not sports_needed:
@@ -356,23 +391,15 @@ async def _enrich_with_opponents(picks: list[ParsedPick]) -> None:
     for pick in picks:
         if pick.sport:
             team = _team_from_pick(pick)
-            if team and _event_needs_opponent(pick.event, team):
-                _fill_event_from_lookup(pick, team, games_by_sport.get(pick.sport, []))
+            if team:
+                _pin_pick_to_game(pick, team, games_by_sport.get(pick.sport, []))
 
         if pick.pick_type == "parlay":
             for leg in (pick.pick_detail or {}).get("legs", []) or []:
                 sport = leg.get("sport")
                 team = _team_from_leg(leg)
-                if sport and team and _event_needs_opponent(leg.get("event"), team):
-                    games = games_by_sport.get(sport, [])
-                    found = find_opponent_in_schedule(team, games)
-                    if found:
-                        matched, opponent, _commence = found
-                        leg["event"] = f"{matched} vs {opponent}"
-                        # Normalize the leg's team to the canonical short name too
-                        leg_detail = leg.get("detail")
-                        if isinstance(leg_detail, dict) and leg_detail.get("team"):
-                            leg_detail["team"] = matched
+                if sport and team:
+                    _pin_leg_to_game(leg, team, games_by_sport.get(sport, []))
 
 
 def _event_needs_opponent(event: Optional[str], team: Optional[str]) -> bool:
@@ -413,19 +440,65 @@ def _team_from_leg(leg: dict) -> Optional[str]:
     return None
 
 
-def _fill_event_from_lookup(pick: ParsedPick, team: str, games: list) -> None:
+def _pin_pick_to_game(pick: ParsedPick, team: str, games: list) -> None:
+    """Pin a pick to its scheduled ESPN game; fill opponent only when missing."""
+    found = find_opponent_in_schedule(team, games)
+    if not found:
+        return  # caller detects via missing event_id and routes to needs_review
+    matched, opponent, commence_time, game_id = found
+    pick.event_id = game_id
+    pick.event_provider = "espn"
+    # Adopt the game's commence time when the parser missed event_date.
+    if pick.event_date is None:
+        pick.event_date = commence_time
+    # Use canonical short names (e.g. "Avalanche" not "Avs") so display,
+    # event string, and outcome-resolution lookups all agree.
+    if isinstance(pick.pick_detail, dict) and pick.pick_detail.get("team"):
+        pick.pick_detail["team"] = matched
+    if _event_needs_opponent(pick.event, team):
+        pick.event = f"{matched} vs {opponent}"
+
+
+def _pin_leg_to_game(leg: dict, team: str, games: list) -> None:
+    """Pin a parlay leg to its scheduled ESPN game."""
     found = find_opponent_in_schedule(team, games)
     if not found:
         return
-    matched, opponent, commence_time = found
-    # Use canonical short names (e.g. "Avalanche" not "Avs") so display,
-    # event string, and outcome-resolution lookups all agree.
-    pick.event = f"{matched} vs {opponent}"
-    if isinstance(pick.pick_detail, dict) and pick.pick_detail.get("team"):
-        pick.pick_detail["team"] = matched
-    # If the parser didn't pick up an event_date, we now have one for free —
-    # use the game's commence time so outcome resolution can match later.
-    if pick.event_date is None:
-        pick.event_date = commence_time
+    matched, opponent, _commence, game_id = found
+    leg["event_id"] = game_id
+    leg["event_provider"] = "espn"
+    if _event_needs_opponent(leg.get("event"), team):
+        leg["event"] = f"{matched} vs {opponent}"
+    leg_detail = leg.get("detail")
+    if isinstance(leg_detail, dict) and leg_detail.get("team"):
+        leg_detail["team"] = matched
+
+
+def _all_picks_pinned(picks: list[ParsedPick]) -> bool:
+    """True only if every pick (and every parlay leg) has an event_id."""
+    for pick in picks:
+        if pick.pick_type == "parlay":
+            legs = (pick.pick_detail or {}).get("legs", []) or []
+            if not legs:
+                return False
+            if not all(leg.get("event_id") for leg in legs):
+                return False
+        elif pick.event_id is None:
+            return False
+    return True
+
+
+def _summarize_unpinned_picks(picks: list[ParsedPick]) -> list[dict]:
+    """User-facing summary of what the parser saw — used in needs_review responses."""
+    summaries: list[dict] = []
+    for parsed in picks:
+        summaries.append({
+            "sport": parsed.sport,
+            "event": parsed.event,
+            "pick_type": parsed.pick_type,
+            "pick_detail": parsed.pick_detail,
+            "odds": parsed.odds,
+        })
+    return summaries
 
 

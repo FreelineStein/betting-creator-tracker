@@ -79,6 +79,10 @@ class ParsedPick:
     units: Optional[float] = None
     confidence: float = 0.8
     raw_text: Optional[str] = None
+    # Populated by opponent enrichment when the pick is matched to a real
+    # scheduled game. Carries through to Pick.event_id / Pick.event_provider.
+    event_id: Optional[str] = None
+    event_provider: Optional[str] = None
 
 
 async def parse_picks(extracted_text: str, source_url: str = "") -> list[ParsedPick]:

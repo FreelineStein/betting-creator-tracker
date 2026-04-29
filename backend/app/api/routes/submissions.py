@@ -165,6 +165,17 @@ async def submit_pick(
                     "$process_person_profile": False,
                 },
             )
+        elif result.needs_review:
+            posthog_client.capture(
+                distinct_id=author_handle,
+                event="pick needs review",
+                properties={
+                    "creator_handle": author_handle,
+                    "picks_parsed": len(result.unpinned_picks),
+                    "was_new_creator": was_new_creator,
+                    "$process_person_profile": False,
+                },
+            )
         elif result.picks_extracted > 0:
             posthog_client.capture(
                 distinct_id=author_handle,
@@ -177,8 +188,15 @@ async def submit_pick(
                 },
             )
 
+    if result.needs_review:
+        status = "needs_review"
+    elif result.already_tracked:
+        status = "already_tracked"
+    else:
+        status = "received"
+
     return {
-        "status": "already_tracked" if result.already_tracked else "received",
+        "status": status,
         "message": _user_message(result, was_new_creator),
         "creator": {
             "display_name": creator.display_name,
@@ -188,6 +206,10 @@ async def submit_pick(
         },
         "picks_extracted": result.picks_extracted,
         "picks": result.picks,
+        # Populated only when status == "needs_review": the parser found picks
+        # but we couldn't pin them to a scheduled game. Surfacing them lets the
+        # user see what we saw while admin review is pending.
+        "unpinned_picks": result.unpinned_picks,
     }
 
 
@@ -199,6 +221,7 @@ def _silent_ok() -> dict:
         "creator": None,
         "picks_extracted": 0,
         "picks": [],
+        "unpinned_picks": [],
     }
 
 
@@ -207,6 +230,13 @@ def _user_message(result, was_new_creator: bool) -> str:
         if result.picks_extracted == 1:
             return "We already have this post — it's tracking 1 pick."
         return f"We already have this post — it's tracking {result.picks_extracted} picks."
+    if result.needs_review:
+        # Parsed at least one pick but couldn't match it to a scheduled game.
+        # Better to flag for admin review than log a pick we can't resolve.
+        return (
+            "Thanks — submission received. We couldn't match this to a scheduled "
+            "game, so it's queued for review before being added to the record."
+        )
     if result.picks_extracted == 0:
         if was_new_creator:
             return (

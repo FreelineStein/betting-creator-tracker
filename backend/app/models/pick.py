@@ -43,6 +43,11 @@ class Pick(Base):
     sport = Column(String)                # "NFL", "NBA", "MLB", etc.
     event = Column(String)                # "Lakers vs Celtics"
     event_date = Column(DateTime(timezone=True))
+    # External game identity, pinned at submission time so resolution is a
+    # direct lookup instead of fuzzy team-name matching. Null on legacy
+    # picks and on submissions where no scheduled game could be found.
+    event_id = Column(String, index=True)
+    event_provider = Column(String)       # "espn" | "odds_api"
 
     # Pick details
     pick_type = Column(SAEnum(PickType))

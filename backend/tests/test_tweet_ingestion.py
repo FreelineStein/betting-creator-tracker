@@ -4,6 +4,7 @@ Run: PYTHONPATH=. ./venv/bin/pytest tests/test_tweet_ingestion.py -v
 """
 from app.pipeline.parser import ParsedPick
 from app.services.tweet_ingestion import (
+    _all_picks_pinned,
     _find_fantasy_score_props,
     _is_fantasy_score_prop,
 )
@@ -86,3 +87,60 @@ def test_normal_prop_pick_returns_empty():
 
 def test_empty_picks_returns_empty():
     assert _find_fantasy_score_props([]) == []
+
+
+# --- _all_picks_pinned ---
+
+def _pinned_pick() -> ParsedPick:
+    return ParsedPick(
+        pick_type="moneyline",
+        pick_detail={"team": "Lakers"},
+        sport="NBA",
+        event="Lakers vs Celtics",
+        event_id="401234567",
+        event_provider="espn",
+    )
+
+
+def _unpinned_pick() -> ParsedPick:
+    return ParsedPick(
+        pick_type="moneyline",
+        pick_detail={"team": "Lakers"},
+        sport="NBA",
+        event="Lakers vs Celtics",
+    )
+
+
+def test_all_pinned_when_every_pick_has_event_id():
+    assert _all_picks_pinned([_pinned_pick(), _pinned_pick()]) is True
+
+
+def test_unpinned_top_level_pick_fails_gate():
+    assert _all_picks_pinned([_pinned_pick(), _unpinned_pick()]) is False
+
+
+def test_parlay_with_all_legs_pinned_passes():
+    parlay = _parlay_with_legs([
+        {"type": "moneyline", "event_id": "1", "detail": {"team": "Lakers"}},
+        {"type": "moneyline", "event_id": "2", "detail": {"team": "Heat"}},
+    ])
+    assert _all_picks_pinned([parlay]) is True
+
+
+def test_parlay_with_one_unpinned_leg_fails_gate():
+    parlay = _parlay_with_legs([
+        {"type": "moneyline", "event_id": "1", "detail": {"team": "Lakers"}},
+        {"type": "moneyline", "detail": {"team": "Heat"}},  # missing event_id
+    ])
+    assert _all_picks_pinned([parlay]) is False
+
+
+def test_parlay_with_no_legs_fails_gate():
+    parlay = ParsedPick(pick_type="parlay", pick_detail={"legs": []}, sport="NBA")
+    assert _all_picks_pinned([parlay]) is False
+
+
+def test_empty_pick_list_passes_vacuously():
+    # Caller checks for parsed_picks before calling this — so empty in means
+    # no picks to gate, which we treat as "pinned" (no-op).
+    assert _all_picks_pinned([]) is True

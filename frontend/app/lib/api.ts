@@ -108,8 +108,16 @@ export interface SubmittedPick {
   confidence: number;
 }
 
+export interface UnpinnedPick {
+  sport: string | null;
+  event: string | null;
+  pick_type: string;
+  pick_detail: Record<string, unknown>;
+  odds: string | null;
+}
+
 export interface SubmissionSuccess {
-  status: "received" | "already_tracked";
+  status: "received" | "already_tracked" | "needs_review";
   message: string;
   creator: {
     display_name: string;
@@ -119,6 +127,9 @@ export interface SubmissionSuccess {
   } | null;
   picks_extracted: number;
   picks: SubmittedPick[];
+  // Populated only when status === "needs_review": picks the parser saw but
+  // couldn't pin to a scheduled game.
+  unpinned_picks: UnpinnedPick[];
 }
 
 export class SubmissionError extends Error {

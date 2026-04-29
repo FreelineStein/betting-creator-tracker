@@ -571,14 +571,16 @@ def team_matches(query: str, candidate: str, *, use_aliases: bool = True) -> boo
 
 def find_opponent_in_schedule(
     team: str, games: list[ScheduledGame]
-) -> Optional[tuple[str, str, datetime]]:
+) -> Optional[tuple[str, str, datetime, str]]:
     """
     Given a team or player name like "Cavs", "Cleveland Cavaliers", or
     "Medvedev", find the matching scheduled game.
 
-    Returns (matched_team_canonical, opponent_canonical, commence_time).
+    Returns (matched_team_canonical, opponent_canonical, commence_time, game_id).
     Both names are the ESPN "short" form (e.g. "Avalanche", "Cavaliers")
-    so callers can normalize the user-entered abbreviation away.
+    so callers can normalize the user-entered abbreviation away. The game_id
+    is ESPN's identifier — callers persist it so outcome resolution can do a
+    direct lookup instead of fuzzy team-name matching.
 
     Match strategy (in order of preference):
       1. exact match on full or short name
@@ -617,7 +619,7 @@ def find_opponent_in_schedule(
         return None
     candidates.sort(key=lambda c: c[0].commence_time)
     soonest, matched_short, opponent_short = candidates[0]
-    return matched_short, opponent_short, soonest.commence_time
+    return matched_short, opponent_short, soonest.commence_time, soonest.game_id
 
 
 async def _get_event_ids(sport_path: str, league: str, date_str: str) -> list[str]:

@@ -140,6 +140,7 @@ export default function SubmitForm({
       posthog?.capture("submission_succeeded", {
         picks_extracted: result.picks_extracted,
         already_tracked: result.status === "already_tracked",
+        needs_review: result.status === "needs_review",
         creator_handle: result.creator?.handle,
       });
     } catch (err) {
@@ -289,28 +290,43 @@ function SuccessPanel({
   result: SubmissionSuccess;
   onSubmitAnother: () => void;
 }) {
+  const isNeedsReview = result.status === "needs_review";
   const isAlreadyTracked = result.status === "already_tracked";
-  const accent = isAlreadyTracked ? "ink" : "signal";
-  const eyebrow = isAlreadyTracked ? "Already on the record" : "Submission received";
+
+  const eyebrow = isNeedsReview
+    ? "Pending review"
+    : isAlreadyTracked
+      ? "Already on the record"
+      : "Submission received";
+
+  // needs_review and already_tracked both use the muted ink treatment —
+  // neither is a "new pick added to the record" outcome, so we don't want
+  // them to wear the green signal accent.
+  const useSignalAccent = !isNeedsReview && !isAlreadyTracked;
+
+  const containerClass = useSignalAccent
+    ? "border-signal/40 bg-signal-dim"
+    : "border-ink-800 bg-ink-800/40";
+  const eyebrowClass = useSignalAccent ? "text-signal" : "text-ink-400";
 
   return (
-    <div
-      className={`rounded-xl border p-6 ${
-        accent === "signal"
-          ? "border-signal/40 bg-signal-dim"
-          : "border-ink-800 bg-ink-800/40"
-      }`}
-    >
+    <div className={`rounded-xl border p-6 ${containerClass}`}>
       <div
-        className={`font-mono text-[10px] uppercase tracking-label mb-3 ${
-          accent === "signal" ? "text-signal" : "text-ink-400"
-        }`}
+        className={`font-mono text-[10px] uppercase tracking-label mb-3 ${eyebrowClass}`}
       >
         {eyebrow}
       </div>
       <h2 className="font-display font-black text-2xl sm:text-3xl tracking-display leading-tight text-white">
         {result.message}
       </h2>
+
+      {isNeedsReview && (
+        <p className="mt-3 text-sm text-ink-200 leading-relaxed">
+          We only log picks we can match to a specific scheduled game so the
+          outcome can be settled fairly. This one didn&apos;t match cleanly —
+          a human will take a look and decide whether to add it to the record.
+        </p>
+      )}
 
       {result.creator && (
         <div className="mt-5 text-sm text-ink-200">
@@ -350,6 +366,35 @@ function SuccessPanel({
             </li>
           ))}
         </ul>
+      )}
+
+      {isNeedsReview && result.unpinned_picks.length > 0 && (
+        <div className="mt-5">
+          <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-2">
+            What we saw
+          </div>
+          <ul className="space-y-2">
+            {result.unpinned_picks.map((p, i) => (
+              <li
+                key={i}
+                className="rounded-md border border-ink-800 bg-pitch px-3 py-2 text-sm"
+              >
+                <div className="text-white">
+                  <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 mr-2">
+                    {p.sport ?? "—"}
+                  </span>
+                  {p.event ??
+                    formatPickDetail({ pick_type: p.pick_type, pick_detail: p.pick_detail })}
+                </div>
+                <div className="text-ink-400 text-xs mt-1 font-mono">
+                  {p.pick_type}
+                  {p.odds ? ` · ${p.odds}` : ""}
+                </div>
+                {p.pick_type === "parlay" && <ParlayLegs detail={p.pick_detail} />}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
