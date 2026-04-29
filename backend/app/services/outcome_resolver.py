@@ -208,6 +208,111 @@ def _resolve_over_under(pick_detail: dict, game: GameResult) -> PickStatus:
         return PickStatus.pending
 
 
+async def resolve_prop_pinned(
+    pick_detail: dict,
+    sport: str,
+    event_id: str,
+) -> PickStatus:
+    """
+    Resolve a player prop against the box score of a specific ESPN event_id.
+
+    Mirrors resolve_prop's contract but skips the date-window search since
+    the pinned event_id tells us exactly which game to read.
+    """
+    from app.services.espn_stats import find_player_stat_in_event
+
+    player = pick_detail.get("player", "")
+    prop = pick_detail.get("prop", "")
+    line_str = str(pick_detail.get("line", ""))
+    direction = pick_detail.get("direction", "over").lower()
+
+    if not player or not prop or not line_str:
+        log.warning("Incomplete prop pick detail", pick_detail=pick_detail)
+        return PickStatus.pending
+
+    try:
+        line = float(line_str)
+    except ValueError:
+        log.warning("Could not parse prop line", line=line_str)
+        return PickStatus.pending
+
+    result = await find_player_stat_in_event(sport, event_id, player, prop)
+    if result is None:
+        log.info(
+            "Pinned prop stat not found",
+            player=player, prop=prop, sport=sport, event_id=event_id,
+        )
+        return PickStatus.pending
+
+    log.info(
+        "Pinned prop stat found",
+        player=result.player_name, prop=prop,
+        actual=result.stat_value, line=line, direction=direction,
+    )
+
+    if result.stat_value == line:
+        return PickStatus.push
+    elif direction == "over":
+        return PickStatus.won if result.stat_value > line else PickStatus.lost
+    elif direction == "under":
+        return PickStatus.won if result.stat_value < line else PickStatus.lost
+    return PickStatus.pending
+
+
+async def resolve_parlay_legs_pinned(
+    pick_detail: dict,
+) -> tuple[dict, PickStatus]:
+    """
+    Resolve each parlay leg via its own pinned `event_id`.
+
+    Each leg in `pick_detail.legs` carries its own `event_id` (set at
+    submission via `_pin_leg_to_game`), so we can look up the exact game
+    or box score per leg without any fuzzy matching. Legs missing
+    `event_id` are skipped (left pending) — they should be rare and only
+    occur on legacy data.
+
+    Returns (updated pick_detail with per-leg results, overall parlay status).
+    """
+    from app.services.espn_stats import find_completed_game_by_event_id
+
+    legs = pick_detail.get("legs", [])
+    if not legs:
+        return pick_detail, PickStatus.pending
+
+    for leg in legs:
+        if not isinstance(leg, dict):
+            continue
+        if leg.get("result") in ("won", "lost", "push"):
+            continue
+
+        leg_event_id = leg.get("event_id")
+        leg_sport = leg.get("sport", "")
+        leg_type = leg.get("type", "")
+        leg_detail = leg.get("detail", {})
+
+        if not leg_event_id or not leg_sport or not leg_type or not leg_detail:
+            continue
+
+        if leg_type == "prop":
+            result = await resolve_prop_pinned(leg_detail, leg_sport, leg_event_id)
+        else:
+            game_sched = await find_completed_game_by_event_id(leg_sport, leg_event_id)
+            if not game_sched or not game_sched.completed:
+                continue
+            game = scheduled_to_game_result(game_sched)
+            result = resolve_pick(leg_type, leg_detail, game)
+
+        if result != PickStatus.pending:
+            leg["result"] = result.value
+            log.info(
+                "Parlay leg resolved (pinned)",
+                text=leg.get("text"), result=result.value, event_id=leg_event_id,
+            )
+
+    overall = _parlay_status_from_legs(legs)
+    return pick_detail, overall
+
+
 async def resolve_parlay_legs(
     pick_detail: dict,
     event_date: Optional[datetime] = None,

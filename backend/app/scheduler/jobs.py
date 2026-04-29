@@ -159,12 +159,16 @@ async def capture_closing_odds():
 async def resolve_pending_outcomes():
     """Check game results and update Pick statuses."""
     from datetime import datetime, timedelta, timezone
+    from sqlalchemy.orm.attributes import flag_modified
     from app.database import SessionLocal
     from app.models import Pick, PickStatus
     from app.services.odds_api import get_completed_games, find_matching_game, SPORT_KEY_MAP
-    from app.services.espn_stats import get_completed_games_espn
+    from app.services.espn_stats import (
+        get_completed_games_espn, find_completed_game_by_event_id,
+    )
     from app.services.outcome_resolver import (
         resolve_pick, resolve_prop, resolve_parlay_legs, scheduled_to_game_result,
+        resolve_prop_pinned, resolve_parlay_legs_pinned,
     )
     from app.services.record_updater import recompute_record
 
@@ -222,6 +226,64 @@ async def resolve_pending_outcomes():
 
         log.info("Found pending picks to resolve", count=len(pending))
 
+        wins = losses = pushes = 0
+
+        # === PINNED PASS ===
+        # Picks with event_id were locked to a specific scheduled game at
+        # submission. Resolve those by direct lookup — no fuzzy team-name
+        # matching, no ±24h date window, no cushion guards needed. Pinned
+        # picks remove themselves from `pending`; the legacy fuzzy path
+        # below operates only on the remainder (picks ingested before the
+        # pinning fix landed).
+        pinned_pending = [
+            p for p in pending if p.event_id and p.event_provider == "espn"
+        ]
+        legacy_pending = [
+            p for p in pending if not (p.event_id and p.event_provider == "espn")
+        ]
+
+        if pinned_pending:
+            log.info("Resolving pinned picks via event_id", count=len(pinned_pending))
+        for pick in pinned_pending:
+            if pick.pick_type == "parlay":
+                updated_detail, new_status = await resolve_parlay_legs_pinned(
+                    pick.pick_detail or {}
+                )
+                pick.pick_detail = updated_detail
+                flag_modified(pick, "pick_detail")
+            elif pick.pick_type == "prop":
+                new_status = await resolve_prop_pinned(
+                    pick.pick_detail or {}, pick.sport, pick.event_id,
+                )
+            else:
+                sched = await find_completed_game_by_event_id(
+                    pick.sport, pick.event_id, anchor_date=pick.event_date,
+                )
+                if not sched or not sched.completed:
+                    continue
+                game = scheduled_to_game_result(sched)
+                new_status = resolve_pick(pick.pick_type, pick.pick_detail or {}, game)
+
+            if new_status != PickStatus.pending:
+                pick.status = new_status
+                pick.outcome_resolved_at = now
+                updated_creators.add(pick.creator_id)
+                resolved_count += 1
+                if new_status == PickStatus.won:
+                    wins += 1
+                elif new_status == PickStatus.lost:
+                    losses += 1
+                elif new_status == PickStatus.push:
+                    pushes += 1
+                log.info(
+                    "Pinned pick resolved",
+                    pick_id=pick.pick_id, pick_type=pick.pick_type,
+                    status=new_status.value, event_id=pick.event_id,
+                )
+
+        # Legacy pass operates only on picks without a pinned event_id.
+        pending = legacy_pending
+
         # Group by sport to minimize API calls. Tennis has no Odds API coverage in
         # SPORT_KEY_MAP; route it through ESPN exclusively. Picks with no sport
         # fall through to the legacy cross-sport search at the bottom.
@@ -235,8 +297,6 @@ async def resolve_pending_outcomes():
                 tennis_picks.append(pick)
             else:
                 unknown_sport_picks.append(pick)
-
-        wins = losses = pushes = 0
 
         def _try_match_and_resolve(pick, games: list) -> bool:
             """

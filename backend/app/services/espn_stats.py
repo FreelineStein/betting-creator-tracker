@@ -154,6 +154,30 @@ def _normalize_name(name: str) -> str:
     return name.lower().strip().replace(".", "").replace("'", "").replace("-", " ")
 
 
+async def find_player_stat_in_event(
+    sport: str,
+    event_id: str,
+    player_name: str,
+    prop_name: str,
+) -> Optional[PlayerGameStats]:
+    """
+    Look up a player's stat for a specific known ESPN event_id.
+
+    Counterpart to find_player_stat for the resolver's pinned path: skips
+    the ±1 day search-across-events because we already know which game
+    the pick was for.
+    """
+    league_info = LEAGUE_MAP.get(sport.upper())
+    if not league_info:
+        log.warning("No ESPN league mapping for sport", sport=sport)
+        return None
+    sport_path, league = league_info
+    normalized_player = _normalize_name(player_name)
+    return await _search_box_score(
+        sport_path, league, event_id, normalized_player, prop_name, sport,
+    )
+
+
 async def find_player_stat(
     player_name: str,
     prop_name: str,
@@ -273,6 +297,27 @@ async def get_scheduled_games(
         anchor=anchor.date().isoformat(),
     )
     return games
+
+
+async def find_completed_game_by_event_id(
+    sport: str,
+    event_id: str,
+    anchor_date: Optional[datetime] = None,
+) -> Optional[ScheduledGame]:
+    """
+    Look up a specific scheduled/completed game by ESPN event_id.
+
+    Used by the resolver's pinned path: instead of fuzzy-matching by team
+    name, we know the exact game from `pick.event_id` set at submission.
+    Falls back gracefully — if the scoreboard window doesn't include the
+    requested id (sport mismatch, anchor_date too far off), returns None
+    and the pick stays pending.
+    """
+    games = await get_scheduled_games(sport, anchor_date=anchor_date)
+    for g in games:
+        if g.game_id == event_id:
+            return g
+    return None
 
 
 async def get_completed_games_espn(
