@@ -13,6 +13,27 @@ from app.services.espn_stats import ScheduledGame
 log = structlog.get_logger()
 
 
+# Props phrased as a "did it happen" yes/no — books default the line to 0.5
+# (Over 0.5 = at least 1). When the parser doesn't pick up an explicit line
+# (e.g., "Aaron Judge HR" with no number), fall back to 0.5 + Over so we can
+# still settle the pick instead of leaving it pending forever.
+_BINARY_PROPS_LOWER = {
+    "home run", "home runs", "hr",
+    "touchdown", "touchdowns", "td",
+    "goal", "goals",
+    "stolen base", "sb",
+}
+
+
+def _resolve_default_prop_line(prop: str, line: Optional[str]) -> Optional[str]:
+    """Default line=0.5 for known binary props when the parser didn't capture one."""
+    if line not in (None, ""):
+        return line
+    if not prop:
+        return None
+    return "0.5" if prop.strip().lower() in _BINARY_PROPS_LOWER else None
+
+
 def scheduled_to_game_result(sg: ScheduledGame) -> GameResult:
     """
     Convert an ESPN ScheduledGame into a GameResult so the existing
@@ -81,7 +102,12 @@ async def resolve_prop(
 
     player = pick_detail.get("player", "")
     prop = pick_detail.get("prop", "")
-    line_str = str(pick_detail.get("line", ""))
+    raw_line = pick_detail.get("line")
+    line_str = str(raw_line) if raw_line not in (None, "") else ""
+    if not line_str:
+        defaulted = _resolve_default_prop_line(prop, line_str or None)
+        if defaulted:
+            line_str = defaulted
     direction = pick_detail.get("direction", "over").lower()
 
     if not player or not prop or not line_str:
@@ -223,7 +249,12 @@ async def resolve_prop_pinned(
 
     player = pick_detail.get("player", "")
     prop = pick_detail.get("prop", "")
-    line_str = str(pick_detail.get("line", ""))
+    raw_line = pick_detail.get("line")
+    line_str = str(raw_line) if raw_line not in (None, "") else ""
+    if not line_str:
+        defaulted = _resolve_default_prop_line(prop, line_str or None)
+        if defaulted:
+            line_str = defaulted
     direction = pick_detail.get("direction", "over").lower()
 
     if not player or not prop or not line_str:

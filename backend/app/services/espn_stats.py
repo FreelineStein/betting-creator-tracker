@@ -75,6 +75,8 @@ PROP_TO_LABEL: dict[str, list[tuple[str, str, Optional[int]]]] = {
     # MLB
     "hits":        [("H", "MLB", 0)],
     "home runs":   [("HR", "MLB", 0)],
+    "home run":    [("HR", "MLB", 0)],
+    "hr":          [("HR", "MLB", 0)],
     "rbis":        [("RBI", "MLB", 0)],
     "rbi":         [("RBI", "MLB", 0)],
     "runs":        [("R", "MLB", 0)],
@@ -84,11 +86,17 @@ PROP_TO_LABEL: dict[str, list[tuple[str, str, Optional[int]]]] = {
 
 # Combo props that require summing multiple stats
 COMBO_PROPS: dict[str, list[str]] = {
+    # NBA / WNBA / CBB
     "pts+reb+ast":  ["PTS", "REB", "AST"],
     "pts+reb":      ["PTS", "REB"],
     "pts+ast":      ["PTS", "AST"],
     "reb+ast":      ["REB", "AST"],
     "pts+reb+ast+stl+blk": ["PTS", "REB", "AST", "STL", "BLK"],
+    # MLB combos — DraftKings/FanDuel "Hitter" parlays
+    "h+r+rbi":      ["H", "R", "RBI"],
+    "h+rbi":        ["H", "RBI"],
+    "r+rbi":        ["R", "RBI"],
+    "h+r":          ["H", "R"],
 }
 
 # Long-form stat names the parser emits, mapped to the short-form tokens used
@@ -100,6 +108,11 @@ _PROP_TOKEN_MAP: dict[str, str] = {
     "steals": "stl",   "stl": "stl",
     "blocks": "blk",   "blk": "blk",
     "turnovers": "to", "to": "to",
+    # MLB
+    "hits": "h",       "h": "h",
+    "runs": "r",       "r": "r",
+    "rbis": "rbi",     "rbi": "rbi",
+    "walks": "bb",     "bb": "bb",
 }
 
 # Whole-string abbreviation aliases for combo props as creators write them
