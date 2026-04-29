@@ -78,7 +78,9 @@ async def pin_unmatched_picks(
         sport: [
             {
                 "event_id": g.game_id,
-                "matchup": f"{g.away_short} @ {g.home_short}",
+                "matchup_short": f"{g.away_short} @ {g.home_short}",
+                "home_team": g.home_team,
+                "away_team": g.away_team,
                 "commence_time": g.commence_time.isoformat(),
             }
             for g in games
@@ -193,12 +195,25 @@ def _build_prompt(
 Below is the original creator post, a list of picks (or parlay legs) that
 the parser couldn't auto-bind to a game, and a list of candidate scheduled
 games per sport. For each unbound pick, choose the matching `event_id`
-from the candidates. If you cannot confidently identify a match, return
-null for that pick — guessing is worse than leaving it unpinned.
+from the candidates.
 
-CRITICAL: only return event_ids that appear in the candidates list. Never
-invent IDs. Match based on team names, player teams, time hints, and any
-other context in the original post.
+Posts routinely use 3-letter abbreviations (BOS, TOR, LAA, NYY, CHC, SD,
+MIA, LAD, etc.), city names, nicknames ("Cavs", "Sixers"), or player names
+without their team. These reliably correspond to specific franchises —
+BOS → Boston Red Sox, TOR → Toronto Blue Jays, LAA → Los Angeles Angels,
+LAD → Los Angeles Dodgers, NYY → New York Yankees, MIA → Miami Marlins,
+SD/SDP → San Diego Padres, CHC → Chicago Cubs, CWS/CHW → Chicago White Sox,
+TEX → Texas Rangers, etc. Make the connection — that's the point of this
+step. The standard string-matcher already failed on these and you are
+its fallback.
+
+Return null only when the post is genuinely ambiguous (no usable team,
+no player, no time hint that distinguishes between multiple candidate
+games). Player props are usually disambiguated by the player's team:
+e.g., "Aaron Judge HR" maps to NYY's game on the relevant date.
+
+CRITICAL: only return event_ids that appear in the candidates list — never
+invent or guess IDs.
 
 Original post:
 \"\"\"
@@ -208,7 +223,8 @@ Original post:
 Unbound picks (and parlay legs):
 {json.dumps(picks_payload, indent=2)}
 
-Candidate scheduled games by sport (event_id, matchup, commence_time):
+Candidate scheduled games by sport (each candidate carries event_id,
+short matchup, full home_team and away_team, and commence_time):
 {json.dumps(candidates_payload, indent=2)}
 
 Respond with a single JSON object — no prose, no markdown fences:
