@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Scheduler
     resolve_interval_hours: int = 2
 
+    # LLM pin fallback — last-resort gate that asks Claude to bind unpinned
+    # picks to scheduled ESPN games. Off-switchable in case cost or quality
+    # misbehaves; default on.
+    llm_pin_fallback_enabled: bool = True
+
     # App
     environment: str = "development"
     log_level: str = "INFO"

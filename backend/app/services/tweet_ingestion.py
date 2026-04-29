@@ -175,6 +175,30 @@ async def ingest_tweet_for_creator(
         # so a busy month can't blow the 450-call free-tier cap. LLM-extracted
         # odds from the post text are preserved verbatim.
         await _enrich_with_odds(parsed_picks)
+        # Last-resort pinning gate: if the team-name lookup left any pick
+        # unpinned, ask Claude to bind it to a specific event_id chosen from
+        # the candidate scheduled games. Catches SGP+ flattening, special
+        # bet types, and player-name-only legs the standard heuristics miss.
+        # Hallucination-safe: only event_ids in the candidate list stick.
+        if not _all_picks_pinned(parsed_picks):
+            from app.services.llm_pin_fallback import pin_unmatched_picks
+            try:
+                pinned = await pin_unmatched_picks(
+                    extracted_text or "",
+                    parsed_picks,
+                    posted_at=post.posted_at,
+                )
+                if pinned and posthog_client:
+                    posthog_client.capture(
+                        distinct_id=creator.creator_id,
+                        event="pin fallback used",
+                        properties={
+                            "pinned": pinned,
+                            "$process_person_profile": False,
+                        },
+                    )
+            except Exception as e:
+                log.warning("pin_fallback_call_failed", url=post.post_url, error=str(e))
 
     source.raw_content = extracted_text
 
