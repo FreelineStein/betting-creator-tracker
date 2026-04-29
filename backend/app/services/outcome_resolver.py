@@ -292,6 +292,7 @@ async def resolve_prop_pinned(
 
 async def resolve_parlay_legs_pinned(
     pick_detail: dict,
+    anchor_date: Optional[datetime] = None,
 ) -> tuple[dict, PickStatus]:
     """
     Resolve each parlay leg via its own pinned `event_id`.
@@ -301,6 +302,13 @@ async def resolve_parlay_legs_pinned(
     or box score per leg without any fuzzy matching. Legs missing
     `event_id` are skipped (left pending) — they should be rare and only
     occur on legacy data.
+
+    `anchor_date` controls the ESPN scoreboard window used for the
+    leg's game lookup. Without it, the lookup defaults to "now",
+    which excludes parlays whose games are more than ~1 day in the past
+    (the scoreboard window is anchor−1 to anchor+5). Callers should
+    pass the parent pick's `event_date` so legs on or near that date
+    fall inside the window.
 
     Returns (updated pick_detail with per-leg results, overall parlay status).
     """
@@ -327,7 +335,9 @@ async def resolve_parlay_legs_pinned(
         if leg_type == "prop":
             result = await resolve_prop_pinned(leg_detail, leg_sport, leg_event_id)
         else:
-            game_sched = await find_completed_game_by_event_id(leg_sport, leg_event_id)
+            game_sched = await find_completed_game_by_event_id(
+                leg_sport, leg_event_id, anchor_date=anchor_date,
+            )
             if not game_sched or not game_sched.completed:
                 continue
             game = scheduled_to_game_result(game_sched)

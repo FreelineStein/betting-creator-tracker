@@ -247,7 +247,8 @@ async def resolve_pending_outcomes():
         for pick in pinned_pending:
             if pick.pick_type == "parlay":
                 updated_detail, new_status = await resolve_parlay_legs_pinned(
-                    pick.pick_detail or {}
+                    pick.pick_detail or {},
+                    anchor_date=pick.event_date,
                 )
                 pick.pick_detail = updated_detail
                 flag_modified(pick, "pick_detail")
