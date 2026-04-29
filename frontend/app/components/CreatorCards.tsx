@@ -239,10 +239,14 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
                               {pick.pick_detail.legs.map((leg: any, j: number) => {
                                 const text = typeof leg === "string" ? leg : leg.text ?? JSON.stringify(leg);
                                 const result = typeof leg === "object" ? leg.result : undefined;
+                                const legEvent = typeof leg === "object" ? leg.event : undefined;
                                 return (
                                   <div key={j} className="text-ink-400 text-xs flex items-center gap-1.5">
                                     {result && <LegDot result={result} />}
-                                    {text}
+                                    <span>{text}</span>
+                                    {legEvent && (
+                                      <span className="text-ink-600">· {legEvent}</span>
+                                    )}
                                   </div>
                                 );
                               })}

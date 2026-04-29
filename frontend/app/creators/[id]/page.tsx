@@ -100,7 +100,17 @@ export default async function CreatorPage({ params }: Props) {
   );
 
   const pendingPicks = picks.filter((p) => p.status === "pending");
-  const resolvedPicks = picks.filter((p) => p.status !== "pending");
+  // Sort resolved picks newest → oldest by event_date so the history reads
+  // top-to-bottom as most-recent-first. Picks missing event_date (legacy
+  // rows) fall to the end.
+  const resolvedPicks = picks
+    .filter((p) => p.status !== "pending")
+    .slice()
+    .sort((a, b) => {
+      const at = a.event_date ? new Date(a.event_date).getTime() : 0;
+      const bt = b.event_date ? new Date(b.event_date).getTime() : 0;
+      return bt - at;
+    });
 
   return (
     <div>
@@ -259,10 +269,14 @@ export default async function CreatorPage({ params }: Props) {
                         {pick.pick_detail.legs.map((leg: any, j: number) => {
                           const text = typeof leg === "string" ? leg : leg.text ?? JSON.stringify(leg);
                           const result = typeof leg === "object" ? leg.result : undefined;
+                          const legEvent = typeof leg === "object" ? leg.event : undefined;
                           return (
                             <div key={j} className="text-ink-400 text-xs flex items-center gap-1.5">
                               {result && <LegDot result={result} />}
-                              {text}
+                              <span>{text}</span>
+                              {legEvent && (
+                                <span className="text-ink-600">· {legEvent}</span>
+                              )}
                             </div>
                           );
                         })}
@@ -315,10 +329,14 @@ function PickRow({ pick }: { pick: Pick }) {
               {pick.pick_detail.legs.map((leg: any, j: number) => {
                 const text = typeof leg === "string" ? leg : leg.text ?? JSON.stringify(leg);
                 const result = typeof leg === "object" ? leg.result : undefined;
+                const legEvent = typeof leg === "object" ? leg.event : undefined;
                 return (
                   <div key={j} className="text-ink-400 text-xs flex items-center gap-1.5">
                     {result && <LegDot result={result} />}
-                    {text}
+                    <span>{text}</span>
+                    {legEvent && (
+                      <span className="text-ink-600">· {legEvent}</span>
+                    )}
                   </div>
                 );
               })}
