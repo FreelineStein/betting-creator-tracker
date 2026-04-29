@@ -74,6 +74,13 @@ async def pin_unmatched_picks(
     if not any(games_by_sport.values()):
         return 0
 
+    # Flat lookup so we can grab a game's commence_time from any returned event_id.
+    games_by_id: dict[str, ScheduledGame] = {
+        g.game_id: g
+        for games in games_by_sport.values()
+        for g in games
+    }
+
     candidates_payload = {
         sport: [
             {
@@ -147,6 +154,8 @@ async def pin_unmatched_picks(
         return 0
 
     pinned = 0
+    parlay_legs_pinned: dict[int, list[ScheduledGame]] = {}
+
     for m in matches:
         if not isinstance(m, dict):
             continue
@@ -158,11 +167,17 @@ async def pin_unmatched_picks(
         if not isinstance(i, int) or i < 0 or i >= len(picks):
             continue
         pick = picks[i]
+        game = games_by_id.get(str(eid))
         j = m.get("leg_index")
         if j is None:
             if pick.event_id is None:
                 pick.event_id = str(eid)
                 pick.event_provider = "espn"
+                # Mirror _pin_pick_to_game: lift the game's commence_time onto
+                # event_date when we don't have one. Without this, the homepage
+                # falls back to displaying "Today" for these rows.
+                if game and pick.event_date is None:
+                    pick.event_date = game.commence_time
                 pinned += 1
         else:
             if not isinstance(j, int) or j < 0:
@@ -174,7 +189,18 @@ async def pin_unmatched_picks(
             if not leg.get("event_id"):
                 leg["event_id"] = str(eid)
                 leg["event_provider"] = "espn"
+                if game:
+                    parlay_legs_pinned.setdefault(i, []).append(game)
                 pinned += 1
+
+    # For parlays where we just pinned legs, set the parent pick's event_date
+    # to the earliest leg commence_time if it's not already set. The homepage
+    # groups picks by date — without this, multi-game parlays display "Today"
+    # even when all their legs were on a specific past date.
+    for i, leg_games in parlay_legs_pinned.items():
+        pick = picks[i]
+        if pick.event_date is None and leg_games:
+            pick.event_date = min(g.commence_time for g in leg_games)
 
     log.info(
         "pin_fallback_complete",

@@ -117,6 +117,60 @@ async def test_pins_top_level_pick_from_llm_response(monkeypatch):
     assert pinned == 1
     assert picks[0].event_id == "401869408"
     assert picks[0].event_provider == "espn"
+    # event_date must come from the matched game's commence_time, otherwise
+    # the homepage falls back to rendering "Today" for these rows.
+    assert picks[0].event_date == datetime(2026, 4, 27, 23, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_parlay_parent_event_date_set_from_earliest_leg(monkeypatch):
+    """When LLM pins parlay legs, the parent pick.event_date should adopt
+    the earliest leg's commence_time so the homepage groups it correctly."""
+    monkeypatch.setattr(settings, "llm_pin_fallback_enabled", True)
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
+
+    parlay = ParsedPick(
+        pick_type="parlay",
+        pick_detail={"legs": [
+            {"type": "moneyline", "sport": "NBA", "detail": {"team": "Lakers"}},
+            {"type": "moneyline", "sport": "NBA", "detail": {"team": "Magic"}},
+        ]},
+        sport="NBA",
+    )
+    early = ScheduledGame(
+        game_id="early-id", sport="NBA",
+        home_team="LA Lakers", home_short="Lakers",
+        away_team="Houston Rockets", away_short="Rockets",
+        commence_time=datetime(2026, 4, 27, 19, 0, tzinfo=timezone.utc),
+        completed=False,
+    )
+    later = ScheduledGame(
+        game_id="later-id", sport="NBA",
+        home_team="Orlando Magic", home_short="Magic",
+        away_team="Detroit Pistons", away_short="Pistons",
+        commence_time=datetime(2026, 4, 27, 23, 0, tzinfo=timezone.utc),
+        completed=False,
+    )
+
+    fake_message = type("M", (), {
+        "content": [type("C", (), {"text": json.dumps({
+            "matches": [
+                {"pick_index": 0, "leg_index": 0, "event_id": "later-id"},
+                {"pick_index": 0, "leg_index": 1, "event_id": "early-id"},
+            ],
+        })})()],
+    })
+
+    with patch(
+        "app.services.llm_pin_fallback.get_scheduled_games",
+        new=AsyncMock(return_value=[early, later]),
+    ), patch("anthropic.AsyncAnthropic") as mock_client_cls:
+        mock_client_cls.return_value.messages.create = AsyncMock(return_value=fake_message)
+        pinned = await pin_unmatched_picks("text", [parlay], posted_at=None)
+
+    assert pinned == 2
+    # Parent should adopt the earliest leg's commence (the 19:00 one).
+    assert parlay.event_date == datetime(2026, 4, 27, 19, 0, tzinfo=timezone.utc)
 
 
 @pytest.mark.asyncio
