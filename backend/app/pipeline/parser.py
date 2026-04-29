@@ -60,6 +60,17 @@ Rules:
 - MULTI-GAME SGP+ / "Parlay+" bundles: DraftKings, FanDuel, and similar books offer a parent bet that bundles multiple per-game Same Game Parlays at a single combined price. Signals on the ticket include phrases like "SGP+", "Same Game Parlay+", "X-leg parlay" or "X leg Same Game Parlay+", "Includes: N Same Game Parlay bets", and a single combined parent odds (e.g. "+478") at the top — followed by several per-game SGP groupings beneath, each with their own odds (e.g. "-149", "-118", "-116"). When you see this nested pattern, that is ONE bet. Return a single parlay pick with every leg from every game flattened into pick_detail.legs, and use the parent combined odds as the pick's `odds`. The per-SGP odds shown beneath the parent are component prices, not separate bets — ignore them. Do NOT split such a ticket into one parlay per game.
 - PARLAY LEGS must be structured objects: {"text": "human-readable description", "type": "spread|moneyline|over_under|prop", "detail": {same schema as pick_detail for that type}, "sport": "NBA", "event": "Team A vs Team B"}. The "text" field is a short human-readable summary. The "type" and "detail" fields follow the same schema as pick_detail for individual picks. Include "sport" and "event" for each leg so they can be resolved independently.
 - Do NOT duplicate picks. If content describes the same bet multiple times (e.g. a summary and then details), only return it once.
+- PROP NAMES — canonicalize these basketball / football abbreviations to their full long form, and NEVER add a parenthetical gloss. The downstream resolver normalizes long-form prop names; abbreviations and creator-invented expansions break it.
+    - "PRA" → "Points + Rebounds + Assists"
+    - "PAs" / "PA" → "Points + Assists"  (NOT "Potential Assists" — there is no such stat)
+    - "PR" → "Points + Rebounds"
+    - "RA" → "Rebounds + Assists"
+    - "P+R+A" → "Points + Rebounds + Assists"  (any other "+"-joined shorthand expands the same way)
+    - "3PM" / "Made Threes" / "Made 3s" → "Made Threes"
+    - "TDs" → "Touchdowns"
+    - "HR" / "HRs" → "Home Runs"
+    - "Hits + Runs + RBIs" / "H+R+RBI" → "Hits + Runs + RBIs"  (keep MLB combo names spelled out)
+  Output the canonical long form as the prop value. No parens, no aliases like "(Potential Assists)" — those are guesses and they're wrong.
 - Return {"picks": [], "no_picks_reason": "..."} if no picks found
 - Return valid JSON only, no explanation
 
