@@ -191,21 +191,30 @@ async def resolve_pending_outcomes():
         # games that pre-date the user's submission, since the user almost
         # certainly submitted before the game (not days after).
         #
-        # Also flag picks whose event_date is already exactly logged_at (sticky
-        # fallback from a previous resolver run): the parser would never emit
-        # an event_date that matches logged_at to the microsecond, so this is a
-        # reliable signal that the original parse missed event_date.
+        # Critically: keep the fallback in a local dict — do NOT mutate
+        # pick.event_date. Earlier versions of this code wrote logged_at onto
+        # the pick row, which db.commit() then persisted. Once persisted, the
+        # pick was permanently in fallback state and re-detected as such on
+        # every subsequent run.
+        #
+        # Also flag picks whose event_date is already exactly logged_at — that
+        # legacy mutation is still in the DB for older picks, and the parser
+        # would never emit an event_date matching logged_at to the microsecond.
         fallback_pick_ids: set = set()
+        fallback_event_dates: dict = {}
         for pick in pending:
             if pick.event_date is None and pick.logged_at:
-                pick.event_date = pick.logged_at
+                fallback_event_dates[pick.pick_id] = pick.logged_at
                 fallback_pick_ids.add(pick.pick_id)
-                log.info("Using logged_at as event_date fallback", pick_id=pick.pick_id)
+                log.info("Using logged_at as event_date fallback (in-memory)", pick_id=pick.pick_id)
             elif pick.event_date and pick.logged_at and pick.event_date == pick.logged_at:
                 fallback_pick_ids.add(pick.pick_id)
 
+        def _effective_event_date(p):
+            return p.event_date or fallback_event_dates.get(p.pick_id)
+
         # Filter to picks with past event dates
-        pending = [p for p in pending if p.event_date and p.event_date < now]
+        pending = [p for p in pending if _effective_event_date(p) and _effective_event_date(p) < now]
 
         if not pending:
             log.info("No pending picks with past dates to resolve")
@@ -239,7 +248,7 @@ async def resolve_pending_outcomes():
             game = find_matching_game(
                 event=pick.event,
                 pick_detail=pick.pick_detail or {},
-                event_date=pick.event_date,
+                event_date=_effective_event_date(pick),
                 games=games,
             )
             if not game:
@@ -319,7 +328,7 @@ async def resolve_pending_outcomes():
                     game = find_matching_game(
                         event=pick.event,
                         pick_detail=pick.pick_detail or {},
-                        event_date=pick.event_date,
+                        event_date=_effective_event_date(pick),
                         games=games,
                     )
 
@@ -362,7 +371,7 @@ async def resolve_pending_outcomes():
                 new_status = await resolve_prop(
                     pick.pick_detail or {},
                     sport,
-                    pick.event_date,
+                    _effective_event_date(pick),
                 )
                 if new_status != PickStatus.pending:
                     pick.status = new_status
@@ -390,7 +399,7 @@ async def resolve_pending_outcomes():
                     continue
                 updated_detail, new_status = await resolve_parlay_legs(
                     pick.pick_detail or {},
-                    pick.event_date,
+                    _effective_event_date(pick),
                 )
                 # Always update pick_detail to persist per-leg results
                 from sqlalchemy.orm.attributes import flag_modified

@@ -339,21 +339,23 @@ def find_matching_game(
 ) -> Optional[GameResult]:
     """
     Match a pick's event string to a completed game.
-    Uses team name matching with date filtering.
+    Uses alias-aware whole-word matching (via espn_stats.team_matches) with
+    date filtering, so abbreviations like "VGK", "Sixers", "Halos", "Avs"
+    resolve to their canonical names.
     """
     if not games:
         return None
 
     # Extract team name from pick detail. Tennis picks carry the competitor in `player`.
-    pick_team = (pick_detail.get("team") or pick_detail.get("player") or "").lower().strip()
+    pick_team = (pick_detail.get("team") or pick_detail.get("player") or "").strip()
 
     # Extract team names from event string ("Chiefs vs Raiders")
-    event_teams = set()
+    event_teams: list[str] = []
     if event:
         for part in event.replace(" vs ", "|").replace(" @ ", "|").replace(" vs. ", "|").split("|"):
-            cleaned = part.strip().lower()
+            cleaned = part.strip()
             if cleaned:
-                event_teams.add(cleaned)
+                event_teams.append(cleaned)
 
     # Filter games by date first (±24h)
     date_filtered = games
@@ -365,21 +367,15 @@ def find_matching_game(
 
     matches = []
     for game in date_filtered:
-        home = game.home_team.lower()
-        away = game.away_team.lower()
-
-        # Try exact match on full team name first
-        if pick_team and (pick_team == home or pick_team == away):
-            return game
-
-        # Try if pick team is contained in full team name (e.g., "Chiefs" in "Kansas City Chiefs")
-        if pick_team and (pick_team in home or pick_team in away):
+        if pick_team and (
+            team_matches(pick_team, game.home_team)
+            or team_matches(pick_team, game.away_team)
+        ):
             matches.append(game)
             continue
 
-        # Try matching event teams
         for et in event_teams:
-            if et in home or et in away or home in et or away in et:
+            if team_matches(et, game.home_team) or team_matches(et, game.away_team):
                 matches.append(game)
                 break
 

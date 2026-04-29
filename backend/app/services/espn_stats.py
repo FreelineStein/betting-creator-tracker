@@ -497,6 +497,7 @@ _NICKNAME_ALIASES: dict[str, str] = {
     "iggles": "eagles",
     # NHL
     "avs": "avalanche",
+    "vgk": "vegas",
     "habs": "canadiens",
     "preds": "predators",
     "caps": "capitals",
