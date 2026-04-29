@@ -161,6 +161,98 @@ def test_find_matching_game_uses_player_field():
     assert game.home_team == "Daniil Medvedev"
 
 
+# --- Alias-aware matching: abbreviations not contained in the full name ---
+
+def test_find_matching_game_resolves_vgk_alias():
+    """VGK isn't a substring of "Vegas Golden Knights" — needs alias map."""
+    game = GameResult(
+        game_id="nhl-1",
+        sport="NHL",
+        home_team="Vegas Golden Knights",
+        away_team="Edmonton Oilers",
+        home_score=4,
+        away_score=2,
+        completed=True,
+        commence_time=datetime(2026, 4, 27, 23, 0, tzinfo=timezone.utc),
+    )
+    found = find_matching_game(
+        event="VGK",
+        pick_detail={"team": "VGK"},
+        event_date=datetime(2026, 4, 27, 20, 45, tzinfo=timezone.utc),
+        games=[game],
+    )
+    assert found is not None
+    assert found.home_team == "Vegas Golden Knights"
+
+
+def test_find_matching_game_resolves_sixers_alias():
+    """Sixers should match "Philadelphia 76ers" via the alias map."""
+    game = GameResult(
+        game_id="nba-1",
+        sport="NBA",
+        home_team="Boston Celtics",
+        away_team="Philadelphia 76ers",
+        home_score=112,
+        away_score=105,
+        completed=True,
+        commence_time=datetime(2026, 4, 28, 23, 0, tzinfo=timezone.utc),
+    )
+    found = find_matching_game(
+        event="Sixers @ Celtics",
+        pick_detail={"team": "Sixers"},
+        event_date=datetime(2026, 4, 28, 21, 0, tzinfo=timezone.utc),
+        games=[game],
+    )
+    assert found is not None
+    assert found.away_team == "Philadelphia 76ers"
+
+
+def test_find_matching_game_resolves_halos_alias():
+    """Halos should match "Los Angeles Angels"."""
+    game = GameResult(
+        game_id="mlb-1",
+        sport="MLB",
+        home_team="Chicago White Sox",
+        away_team="Los Angeles Angels",
+        home_score=3,
+        away_score=7,
+        completed=True,
+        commence_time=datetime(2026, 4, 27, 23, 0, tzinfo=timezone.utc),
+    )
+    found = find_matching_game(
+        event="LAA @ CHW",
+        pick_detail={"team": "Halos"},
+        event_date=datetime(2026, 4, 27, 19, 36, tzinfo=timezone.utc),
+        games=[game],
+    )
+    assert found is not None
+    assert found.away_team == "Los Angeles Angels"
+
+
+def test_find_matching_game_ambiguous_returns_none():
+    """Two same-team games in the date window → ambiguity → None."""
+    g1 = GameResult(
+        game_id="mlb-y", sport="MLB",
+        home_team="Los Angeles Angels", away_team="Houston Astros",
+        home_score=4, away_score=2, completed=True,
+        commence_time=datetime(2026, 4, 26, 23, 0, tzinfo=timezone.utc),
+    )
+    g2 = GameResult(
+        game_id="mlb-t", sport="MLB",
+        home_team="Los Angeles Angels", away_team="Houston Astros",
+        home_score=1, away_score=3, completed=True,
+        commence_time=datetime(2026, 4, 27, 23, 0, tzinfo=timezone.utc),
+    )
+    # event_date right between the two games — both fall inside ±24h
+    found = find_matching_game(
+        event="LAA",
+        pick_detail={"team": "Los Angeles Angels"},
+        event_date=datetime(2026, 4, 27, 11, 0, tzinfo=timezone.utc),
+        games=[g1, g2],
+    )
+    assert found is None
+
+
 # --- ScheduledGame → GameResult conversion ---
 
 def test_scheduled_to_game_result_round_trip():
