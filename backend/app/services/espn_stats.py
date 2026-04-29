@@ -217,17 +217,21 @@ _SCHEDULED_CACHE_TTL = timedelta(minutes=30)
 
 
 async def get_scheduled_games(
-    sport: str, days_back: int = 1, days_ahead: int = 5,
+    sport: str,
+    days_back: int = 1,
+    days_ahead: int = 5,
+    anchor_date: Optional[datetime] = None,
 ) -> list[ScheduledGame]:
     """
     Fetch upcoming + recently-completed games from ESPN's free scoreboard.
     Used to fill in the opponent for picks that name only one team.
 
-    Walks `days_back` days behind through `days_ahead` days forward. The
-    backward window is needed because a creator may post a pick the day of
-    the game and a user may submit it after the game has started or even
-    finished. ESPN serves both upcoming and completed games on the same
-    scoreboard endpoint. No auth, no quota.
+    Walks `days_back` days behind through `days_ahead` days forward, anchored
+    on `anchor_date` (defaults to "now"). For ingestion of historical tweets
+    — replays via /admin/reprocess-url, or a user submitting an old URL via
+    /submit — the anchor MUST be the tweet's `posted_at`, otherwise the
+    lookup pulls today's slate and we silently pin the pick to the team's
+    next game instead of the one the creator actually picked.
 
     For sports with multiple ESPN tour paths (e.g. tennis ATP + WTA), all
     paths are fetched and merged. Tennis is special-cased — its scoreboard
@@ -241,8 +245,12 @@ async def get_scheduled_games(
             return []
         leagues = [single]
 
-    cache_key = f"{sport}:{days_back}:{days_ahead}"
     now = datetime.now(timezone.utc)
+    anchor = anchor_date or now
+
+    # Cache key incorporates the anchor day so retroactive reprocesses don't
+    # poison the live-submission cache (and vice versa).
+    cache_key = f"{sport}:{days_back}:{days_ahead}:{anchor.date().isoformat()}"
     if cache_key in _scheduled_cache:
         cached_at, cached = _scheduled_cache[cache_key]
         if now - cached_at < _SCHEDULED_CACHE_TTL:
@@ -250,15 +258,20 @@ async def get_scheduled_games(
 
     if sport_upper == "TENNIS":
         games = await _fetch_tennis_matches(
-            leagues, days_back=days_back, days_ahead=days_ahead, now=now,
+            leagues, days_back=days_back, days_ahead=days_ahead, now=anchor,
         )
     else:
         games = await _fetch_team_sport_games(
-            sport, leagues, days_back=days_back, days_ahead=days_ahead, now=now,
+            sport, leagues, days_back=days_back, days_ahead=days_ahead, now=anchor,
         )
 
     _scheduled_cache[cache_key] = (now, games)
-    log.info("Fetched ESPN scheduled games", sport=sport, count=len(games))
+    log.info(
+        "Fetched ESPN scheduled games",
+        sport=sport,
+        count=len(games),
+        anchor=anchor.date().isoformat(),
+    )
     return games
 
 

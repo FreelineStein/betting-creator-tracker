@@ -15,6 +15,7 @@ we delete it and retry — same behavior the scrape route had inline.
 """
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional
 
 import structlog
@@ -158,7 +159,7 @@ async def ingest_tweet_for_creator(
                 props=fs_descriptions,
             )
             raise FantasyScorePickRejected(fs_descriptions)
-        await _enrich_with_opponents(parsed_picks)
+        await _enrich_with_opponents(parsed_picks, posted_at=post.posted_at)
         # Fill market odds at submit time so picks display a price immediately
         # instead of waiting for the closing-odds cron (which only fires within
         # 90 min of game start). Self-throttles via the Odds API budget guard,
@@ -355,15 +356,24 @@ async def _enrich_with_odds(picks: list[ParsedPick]) -> None:
 # Opponent enrichment
 # ---------------------------------------------------------------------------
 
-async def _enrich_with_opponents(picks: list[ParsedPick]) -> None:
+async def _enrich_with_opponents(
+    picks: list[ParsedPick],
+    posted_at: Optional[datetime] = None,
+) -> None:
     """
     Pin every pick (and parlay leg) to a specific scheduled ESPN game.
 
     For each pick with sport + team we hit the ESPN scoreboard window
-    (today ±1 / +5 days) and, on a match, persist `event_id` + `event_provider`
+    (anchor ±1 / +5 days) and, on a match, persist `event_id` + `event_provider`
     so outcome resolution becomes a direct lookup. We also fill in opponent
     when the parser only captured one team, and adopt the game's commence
     time as `event_date` if missing.
+
+    `posted_at` anchors the scoreboard window. For an old tweet (replay via
+    /admin/reprocess-url, or a user submitting a historical URL), passing
+    "now" would pin to today's slate of games for the same teams instead of
+    the one the creator actually picked. Callers should always pass the
+    tweet's `posted_at`.
 
     Groups by sport so we make at most one scoreboard request per sport.
 
@@ -386,7 +396,7 @@ async def _enrich_with_opponents(picks: list[ParsedPick]) -> None:
 
     games_by_sport = {}
     for sport in sports_needed:
-        games_by_sport[sport] = await get_scheduled_games(sport)
+        games_by_sport[sport] = await get_scheduled_games(sport, anchor_date=posted_at)
 
     for pick in picks:
         if pick.sport:
