@@ -105,6 +105,9 @@ class TweetIngestionResult:
     # Human-readable list of picks the user submitted, even when nothing was
     # logged — so the review-pending UI can show what the parser saw.
     unpinned_picks: list[dict] = field(default_factory=list)
+    # Diagnostic: did the LLM pin fallback run, and what did it do? Surface
+    # in admin reprocess responses so we can see when it's silently failing.
+    pin_fallback: Optional[dict] = None
 
 
 async def ingest_tweet_for_creator(
@@ -188,6 +191,7 @@ async def ingest_tweet_for_creator(
                     parsed_picks,
                     posted_at=post.posted_at,
                 )
+                result.pin_fallback = {"pinned": pinned, "error": None}
                 if pinned and posthog_client:
                     posthog_client.capture(
                         distinct_id=creator.creator_id,
@@ -199,6 +203,7 @@ async def ingest_tweet_for_creator(
                     )
             except Exception as e:
                 log.warning("pin_fallback_call_failed", url=post.post_url, error=str(e))
+                result.pin_fallback = {"pinned": 0, "error": str(e)}
 
     source.raw_content = extracted_text
 

@@ -166,6 +166,7 @@ async def reprocess_url(
         # parsed picks couldn't be pinned to a scheduled game.
         "needs_review": result.needs_review,
         "unpinned_picks": result.unpinned_picks,
+        "pin_fallback": result.pin_fallback,
         "picks": result.picks,
     }
 
