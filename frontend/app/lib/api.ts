@@ -42,6 +42,7 @@ export interface Pick {
   pick_id: string;
   creator_id: string;
   sport: string;
+  league: string | null;
   event: string;
   event_date: string;
   pick_type: string;
@@ -101,6 +102,7 @@ export async function getAllCreatorsWithRecords(): Promise<
 export interface SubmittedPick {
   source: string;
   sport: string | null;
+  league: string | null;
   event: string | null;
   pick_type: string;
   pick_detail: Record<string, unknown>;
@@ -110,6 +112,7 @@ export interface SubmittedPick {
 
 export interface UnpinnedPick {
   sport: string | null;
+  league: string | null;
   event: string | null;
   pick_type: string;
   pick_detail: Record<string, unknown>;

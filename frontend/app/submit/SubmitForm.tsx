@@ -352,7 +352,7 @@ function SuccessPanel({
             >
               <div className="text-white">
                 <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 mr-2">
-                  {p.sport ?? "—"}
+                  {p.league ?? p.sport ?? "—"}
                 </span>
                 {p.event ?? formatPickDetail(p)}
               </div>
@@ -435,6 +435,7 @@ type Leg = {
   type?: string;
   detail?: Record<string, unknown>;
   sport?: string;
+  league?: string;
   event?: string;
 };
 
@@ -446,7 +447,7 @@ function ParlayLegs({ detail }: { detail: Record<string, unknown> }) {
       {legs.map((leg, i) => (
         <li key={i} className="text-xs text-ink-200 leading-snug">
           <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 mr-2">
-            {leg.sport ?? "—"}
+            {leg.league ?? leg.sport ?? "—"}
           </span>
           <span className="text-white">{leg.text || formatLeg(leg)}</span>
           {leg.event && (

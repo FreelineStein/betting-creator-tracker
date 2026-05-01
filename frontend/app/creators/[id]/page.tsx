@@ -14,7 +14,8 @@ const SPORT_ICONS: Record<string, string> = {
   MLB: "⚾",
   WBC: "⚾",
   NHL: "🏒",
-  MLS: "⚽",
+  SOCCER: "⚽",
+  TENNIS: "🎾",
   UFC: "🥊",
   PGA: "⛳",
 };
@@ -256,7 +257,7 @@ export default async function CreatorPage({ params }: Props) {
                 <div className="col-span-2 font-mono text-xs text-ink-400">
                   {formatDate(pick.event_date)}
                 </div>
-                <div className="col-span-2 text-base" title={pick.sport}>
+                <div className="col-span-2 text-base" title={pick.league ?? pick.sport}>
                   {SPORT_ICONS[pick.sport] ?? pick.sport}
                 </div>
                 <div className="col-span-4 text-white">
@@ -282,13 +283,17 @@ export default async function CreatorPage({ params }: Props) {
                         })}
                       </div>
                       {pick.event && (
-                        <div className="text-xs text-ink-600 mt-1">{pick.event}</div>
+                        <div className="text-xs text-ink-600 mt-1">
+                          {pick.league ? `${pick.league} · ` : ""}{pick.event}
+                        </div>
                       )}
                     </>
                   ) : (
                     <>
                       {formatPickDetail(pick.pick_type, pick.pick_detail)}
-                      <div className="text-xs text-ink-600">{pick.event}</div>
+                      <div className="text-xs text-ink-600">
+                        {pick.league ? `${pick.league} · ` : ""}{pick.event}
+                      </div>
                     </>
                   )}
                 </div>
@@ -342,7 +347,7 @@ function PickRow({ pick }: { pick: Pick }) {
               })}
             </div>
             <div className="text-ink-600 text-xs mt-1">
-              {pick.sport}
+              {pick.league ?? pick.sport}
               {pick.event ? ` · ${pick.event}` : ""}
             </div>
           </>
@@ -352,7 +357,7 @@ function PickRow({ pick }: { pick: Pick }) {
               {formatPickDetail(pick.pick_type, pick.pick_detail)}
             </div>
             <div className="text-ink-600 text-xs mt-0.5">
-              {pick.sport} · {pick.event}
+              {pick.league ?? pick.sport} · {pick.event}
             </div>
           </>
         )}

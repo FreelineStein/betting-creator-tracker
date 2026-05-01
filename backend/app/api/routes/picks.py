@@ -18,6 +18,7 @@ router = APIRouter(prefix="/picks", tags=["picks"])
 class PickCreate(BaseModel):
     creator_id: str
     sport: str
+    league: Optional[str] = None
     event: str
     event_date: datetime
     pick_type: PickType
@@ -34,6 +35,7 @@ class PickResponse(BaseModel):
     pick_id: str
     creator_id: str
     sport: str
+    league: Optional[str] = None
     event: str
     event_date: datetime
     pick_type: str
@@ -75,6 +77,7 @@ def create_pick(request: Request, data: PickCreate, db: Session = Depends(get_db
         source_id=source.source_id,
         creator_id=data.creator_id,
         sport=data.sport,
+        league=data.league,
         event=data.event,
         event_date=data.event_date,
         pick_type=data.pick_type,

@@ -24,7 +24,8 @@ const SPORT_ICONS: Record<string, string> = {
   MLB: "⚾",
   WBC: "⚾",
   NHL: "🏒",
-  MLS: "⚽",
+  SOCCER: "⚽",
+  TENNIS: "🎾",
   UFC: "🥊",
   PGA: "⛳",
 };
@@ -226,7 +227,10 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
                       <div className="font-mono text-[11px] text-ink-400 w-12 shrink-0">
                         {pick.event_date ? formatDate(pick.event_date) : "Today"}
                       </div>
-                      <div className="text-base w-6 shrink-0 text-center" title={pick.sport}>
+                      <div
+                        className="text-base w-6 shrink-0 text-center"
+                        title={pick.league ?? pick.sport}
+                      >
                         {SPORT_ICONS[pick.sport] ?? "🏆"}
                       </div>
                       <div className="min-w-0">
@@ -252,7 +256,9 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
                               })}
                             </div>
                             {pick.event && (
-                              <div className="text-ink-600 text-xs mt-1">{pick.event}</div>
+                              <div className="text-ink-600 text-xs mt-1">
+                                {pick.league ? `${pick.league} · ` : ""}{pick.event}
+                              </div>
                             )}
                           </>
                         ) : (
@@ -260,7 +266,9 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
                             <div className="text-white text-sm font-semibold truncate">
                               {formatPickDetail(pick.pick_type, pick.pick_detail)}
                             </div>
-                            <div className="text-ink-600 text-xs truncate">{pick.event}</div>
+                            <div className="text-ink-600 text-xs truncate">
+                              {pick.league ? `${pick.league} · ` : ""}{pick.event}
+                            </div>
                           </>
                         )}
                       </div>
