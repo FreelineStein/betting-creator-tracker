@@ -19,7 +19,7 @@ from app.config import settings
 log = structlog.get_logger()
 
 # Sports we recognize
-KNOWN_SPORTS = {"NFL", "NBA", "MLB", "NHL", "CFB", "CBB", "MLS", "UFC", "NCAAF", "NCAAB", "WNBA", "PGA", "WBC", "TENNIS"}
+KNOWN_SPORTS = {"NFL", "NBA", "MLB", "NHL", "CFB", "CBB", "SOCCER", "UFC", "NCAAF", "NCAAB", "WNBA", "PGA", "WBC", "TENNIS"}
 
 PARSE_PROMPT = """You are a sports betting pick extractor. Extract ALL betting picks from the text below.
 
@@ -27,7 +27,8 @@ For each pick found, return a JSON object with this exact structure:
 {
   "picks": [
     {
-      "sport": "NFL",              // Sport abbreviation. MUST be one of: NFL, NBA, MLB, NHL, CFB, CBB, MLS, UFC, NCAAF, NCAAB, WNBA, PGA, WBC, TENNIS. Infer from team/league context if not stated explicitly. PGA is golf only; tennis players (Medvedev, Gauff, Aliassime, Sinner, Alcaraz, Sabalenka, Swiatek, etc., on the ATP/WTA tours) MUST be tagged TENNIS, not PGA.
+      "sport": "NFL",              // Sport abbreviation. MUST be one of: NFL, NBA, MLB, NHL, CFB, CBB, SOCCER, UFC, NCAAF, NCAAB, WNBA, PGA, WBC, TENNIS. Infer from team/league context if not stated explicitly. PGA is golf only; tennis players (Medvedev, Gauff, Aliassime, Sinner, Alcaraz, Sabalenka, Swiatek, etc., on the ATP/WTA tours) MUST be tagged TENNIS, not PGA. Soccer covers ALL leagues (Premier League, Champions League, MLS, La Liga, etc.) — tag the sport as SOCCER and put the specific league in the `league` field.
+      "league": null,              // Required for SOCCER picks: the specific league. Use one of these canonical names when possible: "Premier League", "Championship", "Champions League", "Europa League", "Conference League", "La Liga", "Bundesliga", "Serie A", "Ligue 1", "MLS", "Liga MX", "World Cup", "Copa America", "Euros". Infer from team context (Aston Villa + Nottingham Forest in midweek + European cup context = "Europa League"; same teams on a weekend = "Premier League"). If you genuinely can't tell which league, use null. Leave null for all non-SOCCER sports.
       "event": "Chiefs vs Raiders", // Use "Team A vs Team B" format ONLY if both teams are clearly mentioned in the text. If only one team is mentioned, output JUST that team's name (e.g. "Chiefs"). NEVER use placeholders like "Opponent", "TBD", "Unknown", or "Other". The opponent will be looked up downstream.
       "event_date": null,          // ISO date string if mentioned (e.g. "2024-01-15"), otherwise null
       "pick_type": "spread",       // One of: spread, moneyline, over_under, prop, parlay
@@ -36,7 +37,7 @@ For each pick found, return a JSON object with this exact structure:
         // moneyline:   {"team": "Chiefs"}
         // over_under:  {"direction": "Over", "total": "47.5"}
         // prop:        {"player": "Patrick Mahomes", "prop": "passing yards", "line": "285.5", "direction": "Over"}
-        // parlay:      {"legs": [{"text": "Chiefs -3.5", "type": "spread", "detail": {"team": "Chiefs", "line": "-3.5"}, "sport": "NFL", "event": "Chiefs vs Raiders"}, ...]}
+        // parlay:      {"legs": [{"text": "Chiefs -3.5", "type": "spread", "detail": {"team": "Chiefs", "line": "-3.5"}, "sport": "NFL", "league": null, "event": "Chiefs vs Raiders"}, ...]}
       },
       "odds": "-110",              // American odds as string (e.g. "-110", "+145"). Null if not mentioned.
       "units": 1.0,                // Units bet as float. Null if not mentioned.
@@ -58,7 +59,7 @@ Rules:
     - UI shape: each pick shows the player on one line plus a team/position/jersey row like "PIT • F • #87", an up/down arrow with a numeric line ("↑ 11" or "↓ 0.5"), a stat name ("Faceoffs Won", "Double-Double", "Triple-Double", "Hitter FS", "Pass+Rush Yards"), and an empty / current stat value below.
   When you see ANY of those, ALWAYS return ONE parlay pick — never separate picks — with each pick as a leg. Each leg's `direction` follows the arrow (↑ = Over, ↓ = Under). Compute the pick's `odds` from "$X to pay $Y" as American odds: ((Y / X) − 1) × 100 with a "+" prefix (e.g. "$1,000 to pay $10,000" → "+900"). If no payout text is present, leave `odds` null.
 - MULTI-GAME SGP+ / "Parlay+" bundles: DraftKings, FanDuel, and similar books offer a parent bet that bundles multiple per-game Same Game Parlays at a single combined price. Signals on the ticket include phrases like "SGP+", "Same Game Parlay+", "X-leg parlay" or "X leg Same Game Parlay+", "Includes: N Same Game Parlay bets", and a single combined parent odds (e.g. "+478") at the top — followed by several per-game SGP groupings beneath, each with their own odds (e.g. "-149", "-118", "-116"). When you see this nested pattern, that is ONE bet. Return a single parlay pick with every leg from every game flattened into pick_detail.legs, and use the parent combined odds as the pick's `odds`. The per-SGP odds shown beneath the parent are component prices, not separate bets — ignore them. Do NOT split such a ticket into one parlay per game.
-- PARLAY LEGS must be structured objects: {"text": "human-readable description", "type": "spread|moneyline|over_under|prop", "detail": {same schema as pick_detail for that type}, "sport": "NBA", "event": "Team A vs Team B"}. The "text" field is a short human-readable summary. The "type" and "detail" fields follow the same schema as pick_detail for individual picks. Include "sport" and "event" for each leg so they can be resolved independently.
+- PARLAY LEGS must be structured objects: {"text": "human-readable description", "type": "spread|moneyline|over_under|prop", "detail": {same schema as pick_detail for that type}, "sport": "NBA", "league": null, "event": "Team A vs Team B"}. The "text" field is a short human-readable summary. The "type" and "detail" fields follow the same schema as pick_detail for individual picks. Include "sport", "league" (only for SOCCER legs; null otherwise), and "event" for each leg so they can be resolved independently.
 - Do NOT duplicate picks. If content describes the same bet multiple times (e.g. a summary and then details), only return it once.
 - PROP NAMES — canonicalize these basketball / football abbreviations to their full long form, and NEVER add a parenthetical gloss. The downstream resolver normalizes long-form prop names; abbreviations and creator-invented expansions break it.
     - "PRA" → "Points + Rebounds + Assists"
@@ -84,6 +85,7 @@ class ParsedPick:
     pick_type: str
     pick_detail: dict
     sport: Optional[str] = None
+    league: Optional[str] = None
     event: Optional[str] = None
     event_date: Optional[datetime] = None
     odds: Optional[str] = None
@@ -151,6 +153,16 @@ def _deserialize_picks(raw_picks: list[dict], original_text: str) -> list[Parsed
                 if sport not in KNOWN_SPORTS:
                     sport = _fuzzy_sport(sport)
 
+            # League is only meaningful for SOCCER right now; ignore stray values
+            # the LLM might put on other sports.
+            league = item.get("league")
+            if league and isinstance(league, str):
+                league = league.strip() or None
+            else:
+                league = None
+            if sport != "SOCCER":
+                league = None
+
             # Parse event date if present
             event_date = None
             if raw_date := item.get("event_date"):
@@ -173,6 +185,7 @@ def _deserialize_picks(raw_picks: list[dict], original_text: str) -> list[Parsed
 
             results.append(ParsedPick(
                 sport=sport,
+                league=league,
                 event=item.get("event"),
                 event_date=event_date,
                 pick_type=pick_type,
@@ -200,6 +213,15 @@ def _normalize_legs(legs: list) -> list[dict]:
         elif isinstance(leg, dict):
             leg.setdefault("result", "pending")
             leg.setdefault("text", _leg_text_from_detail(leg))
+            # Normalize sport tags on legs so e.g. an MLS-tagged leg from the
+            # LLM becomes SOCCER, matching the rest of the pipeline.
+            sport = leg.get("sport")
+            if sport and isinstance(sport, str):
+                upper = sport.upper()
+                leg["sport"] = upper if upper in KNOWN_SPORTS else (_fuzzy_sport(upper) or upper)
+            # League is only carried for SOCCER legs.
+            if leg.get("sport") != "SOCCER":
+                leg.pop("league", None)
             normalized.append(leg)
         else:
             continue
@@ -226,9 +248,15 @@ def _fuzzy_sport(sport_str: str) -> Optional[str]:
     mappings = {
         "FOOTBALL": "NFL", "BASKETBALL": "NBA", "BASEBALL": "MLB",
         "HOCKEY": "NHL", "COLLEGE FOOTBALL": "CFB", "COLLEGE BASKETBALL": "CBB",
-        "SOCCER": "MLS", "GOLF": "PGA", "MMA": "UFC",
+        "GOLF": "PGA", "MMA": "UFC",
         "WORLD BASEBALL CLASSIC": "WBC", "WORLD BASEBALL": "WBC",
         "ATP": "TENNIS", "WTA": "TENNIS", "ITF": "TENNIS",
+        # Soccer aliases — sport is always SOCCER, the league lives on `league`.
+        "MLS": "SOCCER", "EPL": "SOCCER", "PREMIER LEAGUE": "SOCCER",
+        "LA LIGA": "SOCCER", "BUNDESLIGA": "SOCCER", "SERIE A": "SOCCER",
+        "LIGUE 1": "SOCCER", "CHAMPIONS LEAGUE": "SOCCER",
+        "EUROPA LEAGUE": "SOCCER", "UEFA": "SOCCER", "FUTBOL": "SOCCER",
+        "FOOTY": "SOCCER",
     }
     return mappings.get(sport_str.upper())
 
