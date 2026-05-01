@@ -33,23 +33,30 @@ async def pin_unmatched_picks(
     raw_text: str,
     picks: list[ParsedPick],
     posted_at: Optional[datetime] = None,
-) -> int:
+) -> dict:
     """
     Bind any pick (or parlay leg) still missing `event_id` to a scheduled
     ESPN game by asking Claude to choose from a candidate list.
 
-    Mutates picks in place. Returns the count of picks/legs newly pinned.
+    Mutates picks in place. Returns a diagnostic dict:
+      {
+        "pinned":           int,        # legs/picks newly bound
+        "attempted":        int,        # legs/picks asked about
+        "candidates":       int,        # total scheduled-game options offered
+        "raw_response":     str | None, # Claude's text reply (None if call failed)
+        "skipped_reason":   str | None, # short tag if we returned early
+      }
 
-    No-op when:
+    Returns a no-op dict (with skipped_reason set) when:
       - the kill-switch is off
       - no Anthropic key is configured
       - every pick is already pinned
       - we have no scheduled games to offer as candidates
     """
     if not settings.llm_pin_fallback_enabled:
-        return 0
+        return {"pinned": 0, "attempted": 0, "candidates": 0, "raw_response": None, "skipped_reason": "disabled"}
     if not settings.anthropic_api_key:
-        return 0
+        return {"pinned": 0, "attempted": 0, "candidates": 0, "raw_response": None, "skipped_reason": "no_anthropic_key"}
 
     sports_needed: set[str] = set()
     unpinned_count = 0
@@ -64,7 +71,13 @@ async def pin_unmatched_picks(
             unpinned_count += 1
 
     if unpinned_count == 0 or not sports_needed:
-        return 0
+        return {
+            "pinned": 0,
+            "attempted": 0,
+            "candidates": 0,
+            "raw_response": None,
+            "skipped_reason": "nothing_to_pin",
+        }
 
     games_by_sport: dict[str, list[ScheduledGame]] = {}
     for sport in sports_needed:
@@ -72,7 +85,13 @@ async def pin_unmatched_picks(
             sport, anchor_date=posted_at,
         )
     if not any(games_by_sport.values()):
-        return 0
+        return {
+            "pinned": 0,
+            "attempted": unpinned_count,
+            "candidates": 0,
+            "raw_response": None,
+            "skipped_reason": "no_scheduled_games",
+        }
 
     # Flat lookup so we can grab a game's commence_time from any returned event_id.
     games_by_id: dict[str, ScheduledGame] = {
@@ -125,7 +144,13 @@ async def pin_unmatched_picks(
             })
 
     if not picks_payload:
-        return 0
+        return {
+            "pinned": 0,
+            "attempted": 0,
+            "candidates": 0,
+            "raw_response": None,
+            "skipped_reason": "empty_payload",
+        }
 
     valid_ids: set[str] = {
         g.game_id for games in games_by_sport.values() for g in games
@@ -133,6 +158,7 @@ async def pin_unmatched_picks(
 
     prompt = _build_prompt(raw_text, picks_payload, candidates_payload)
 
+    raw_response: Optional[str] = None
     try:
         import anthropic
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
@@ -141,17 +167,29 @@ async def pin_unmatched_picks(
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
-        raw = message.content[0].text.strip()
-        raw = re.sub(r"^```(?:json)?\n?", "", raw)
+        raw_response = message.content[0].text.strip()
+        raw = re.sub(r"^```(?:json)?\n?", "", raw_response)
         raw = re.sub(r"\n?```$", "", raw)
         data = json.loads(raw)
     except Exception as e:
         log.warning("pin_fallback_llm_failed", error=str(e))
-        return 0
+        return {
+            "pinned": 0,
+            "attempted": unpinned_count,
+            "candidates": len(valid_ids),
+            "raw_response": raw_response,
+            "skipped_reason": f"llm_error:{e}",
+        }
 
     matches = data.get("matches") if isinstance(data, dict) else None
     if not isinstance(matches, list):
-        return 0
+        return {
+            "pinned": 0,
+            "attempted": unpinned_count,
+            "candidates": len(valid_ids),
+            "raw_response": raw_response,
+            "skipped_reason": "no_matches_in_response",
+        }
 
     pinned = 0
     parlay_legs_pinned: dict[int, list[ScheduledGame]] = {}
@@ -208,7 +246,13 @@ async def pin_unmatched_picks(
         pinned=pinned,
         candidates=len(valid_ids),
     )
-    return pinned
+    return {
+        "pinned": pinned,
+        "attempted": unpinned_count,
+        "candidates": len(valid_ids),
+        "raw_response": raw_response,
+        "skipped_reason": None,
+    }
 
 
 def _build_prompt(

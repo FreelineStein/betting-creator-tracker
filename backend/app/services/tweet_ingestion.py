@@ -186,24 +186,30 @@ async def ingest_tweet_for_creator(
         if not _all_picks_pinned(parsed_picks):
             from app.services.llm_pin_fallback import pin_unmatched_picks
             try:
-                pinned = await pin_unmatched_picks(
+                fallback_result = await pin_unmatched_picks(
                     extracted_text or "",
                     parsed_picks,
                     posted_at=post.posted_at,
                 )
-                result.pin_fallback = {"pinned": pinned, "error": None}
-                if pinned and posthog_client:
+                result.pin_fallback = fallback_result
+                if fallback_result.get("pinned") and posthog_client:
                     posthog_client.capture(
                         distinct_id=creator.creator_id,
                         event="pin fallback used",
                         properties={
-                            "pinned": pinned,
+                            "pinned": fallback_result["pinned"],
                             "$process_person_profile": False,
                         },
                     )
             except Exception as e:
                 log.warning("pin_fallback_call_failed", url=post.post_url, error=str(e))
-                result.pin_fallback = {"pinned": 0, "error": str(e)}
+                result.pin_fallback = {
+                    "pinned": 0,
+                    "attempted": 0,
+                    "candidates": 0,
+                    "raw_response": None,
+                    "skipped_reason": f"caller_error:{e}",
+                }
 
     source.raw_content = extracted_text
 

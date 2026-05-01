@@ -57,7 +57,7 @@ async def test_noop_when_kill_switch_off(monkeypatch):
     monkeypatch.setattr(settings, "llm_pin_fallback_enabled", False)
     picks = [_unpinned_prop_pick()]
     pinned = await pin_unmatched_picks("text", picks, posted_at=None)
-    assert pinned == 0
+    assert pinned["pinned"] == 0
     assert picks[0].event_id is None
 
 
@@ -67,7 +67,7 @@ async def test_noop_when_no_anthropic_key(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_api_key", None)
     picks = [_unpinned_prop_pick()]
     pinned = await pin_unmatched_picks("text", picks, posted_at=None)
-    assert pinned == 0
+    assert pinned["pinned"] == 0
 
 
 @pytest.mark.asyncio
@@ -76,7 +76,7 @@ async def test_noop_when_all_picks_pinned(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
     picks = [_pinned_pick()]
     pinned = await pin_unmatched_picks("text", picks, posted_at=None)
-    assert pinned == 0
+    assert pinned["pinned"] == 0
 
 
 @pytest.mark.asyncio
@@ -88,7 +88,7 @@ async def test_noop_when_no_candidate_games(monkeypatch):
         new=AsyncMock(return_value=[]),
     ):
         pinned = await pin_unmatched_picks("text", [_unpinned_prop_pick()], posted_at=None)
-    assert pinned == 0
+    assert pinned["pinned"] == 0
 
 
 @pytest.mark.asyncio
@@ -114,7 +114,7 @@ async def test_pins_top_level_pick_from_llm_response(monkeypatch):
         mock_client_cls.return_value.messages.create = AsyncMock(return_value=fake_message)
         pinned = await pin_unmatched_picks("text", picks, posted_at=None)
 
-    assert pinned == 1
+    assert pinned["pinned"] == 1
     assert picks[0].event_id == "401869408"
     assert picks[0].event_provider == "espn"
     # event_date must come from the matched game's commence_time, otherwise
@@ -168,7 +168,7 @@ async def test_parlay_parent_event_date_set_from_earliest_leg(monkeypatch):
         mock_client_cls.return_value.messages.create = AsyncMock(return_value=fake_message)
         pinned = await pin_unmatched_picks("text", [parlay], posted_at=None)
 
-    assert pinned == 2
+    assert pinned["pinned"] == 2
     # Parent should adopt the earliest leg's commence (the 19:00 one).
     assert parlay.event_date == datetime(2026, 4, 27, 19, 0, tzinfo=timezone.utc)
 
@@ -197,7 +197,7 @@ async def test_drops_hallucinated_event_id(monkeypatch):
         mock_client_cls.return_value.messages.create = AsyncMock(return_value=fake_message)
         pinned = await pin_unmatched_picks("text", picks, posted_at=None)
 
-    assert pinned == 0
+    assert pinned["pinned"] == 0
     assert picks[0].event_id is None
 
 
@@ -231,7 +231,7 @@ async def test_pins_parlay_leg(monkeypatch):
         mock_client_cls.return_value.messages.create = AsyncMock(return_value=fake_message)
         pinned = await pin_unmatched_picks("text", [parlay], posted_at=None)
 
-    assert pinned == 1
+    assert pinned["pinned"] == 1
     legs = parlay.pick_detail["legs"]
     assert legs[0]["event_id"] == "401869408"
     assert legs[0]["event_provider"] == "espn"
@@ -254,4 +254,4 @@ async def test_returns_zero_on_llm_exception(monkeypatch):
         mock_client_cls.return_value.messages.create = AsyncMock(side_effect=RuntimeError("boom"))
         pinned = await pin_unmatched_picks("text", [_unpinned_prop_pick()], posted_at=None)
 
-    assert pinned == 0
+    assert pinned["pinned"] == 0
