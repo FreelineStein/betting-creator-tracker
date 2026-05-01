@@ -48,6 +48,9 @@ For each pick found, return a JSON object with this exact structure:
 }
 
 Rules:
+- TEAM-NAME → SPORT DISAMBIGUATION: a few team names collide with non-sport entities in your training data and must be forced to the right sport regardless of how they sound:
+    - "Mammoth" / "Utah Mammoth" → NHL (Utah's NHL franchise, formerly Utah Hockey Club / Arizona Coyotes). NEVER tag a Mammoth pick as PGA, golf, or anything else.
+    - "Hockey Club" / "Utah HC" → NHL (legacy name for the same Utah franchise — by current branding it's Mammoth).
 - Only extract REAL picks the creator is making, not examples or historical references
 - A pick must have at minimum: pick_type and pick_detail
 - ALWAYS infer the sport. Use team names, league context, and common knowledge to determine the sport. For example: "Venezuela -1.5" during March = WBC (World Baseball Classic). College teams during March = CBB. NFL teams = NFL. Never leave sport as null if you can reasonably infer it.
