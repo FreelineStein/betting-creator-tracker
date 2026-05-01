@@ -621,6 +621,7 @@ _NICKNAME_ALIASES: dict[str, str] = {
     "nucks": "canucks",
     "canes": "hurricanes",
     "bolts": "lightning",
+    "lighting": "lightning",     # common typo, missing the second "n"
     "wild": "wild",
     "stars": "stars",
     # MLB
