@@ -286,6 +286,28 @@ async def _llm_parse(text: str) -> dict:
         raise RuntimeError("No LLM API key configured for pick parser")
 
 
+def extract_json_object(text: str) -> str:
+    """
+    Pull a JSON object substring from possibly-prosaic LLM output.
+
+    Handles:
+      - bare JSON: `{...}`
+      - JSON inside a ```json ... ``` fence (with or without preamble)
+      - JSON preceded by free-text reasoning, no fence
+
+    Returns the extracted text; caller calls json.loads on it.
+    Raises ValueError when no JSON object can be located.
+    """
+    fence = re.search(r"```(?:json)?\s*\n?(\{[\s\S]*?\})\s*\n?```", text)
+    if fence:
+        return fence.group(1)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        raise ValueError("No JSON object found in response")
+    return text[start:end + 1]
+
+
 async def _anthropic_parse(text: str) -> dict:
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
@@ -302,10 +324,7 @@ async def _anthropic_parse(text: str) -> dict:
         }],
     )
     raw = message.content[0].text.strip()
-    # Strip markdown code blocks if present
-    raw = re.sub(r"^```(?:json)?\n?", "", raw)
-    raw = re.sub(r"\n?```$", "", raw)
-    return json.loads(raw)
+    return json.loads(extract_json_object(raw))
 
 
 async def _openai_parse(text: str) -> dict:

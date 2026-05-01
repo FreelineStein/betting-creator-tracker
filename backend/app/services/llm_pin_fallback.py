@@ -21,7 +21,7 @@ from typing import Optional
 import structlog
 
 from app.config import settings
-from app.pipeline.parser import ParsedPick
+from app.pipeline.parser import ParsedPick, extract_json_object
 from app.services.espn_stats import ScheduledGame, get_scheduled_games
 
 log = structlog.get_logger()
@@ -168,9 +168,7 @@ async def pin_unmatched_picks(
             messages=[{"role": "user", "content": prompt}],
         )
         raw_response = message.content[0].text.strip()
-        raw = re.sub(r"^```(?:json)?\n?", "", raw_response)
-        raw = re.sub(r"\n?```$", "", raw)
-        data = json.loads(raw)
+        data = json.loads(extract_json_object(raw_response))
     except Exception as e:
         log.warning("pin_fallback_llm_failed", error=str(e))
         return {
