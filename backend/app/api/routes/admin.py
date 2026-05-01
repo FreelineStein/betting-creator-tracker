@@ -36,6 +36,10 @@ class ReprocessUrlRequest(BaseModel):
     url: str = Field(min_length=15, max_length=500)
 
 
+class DebugParseRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=10000)
+
+
 def _canonical_url_variants(url: str) -> list[str]:
     """Return the URL plus its twitter.com / x.com counterpart for dedup lookup."""
     out = {url}
@@ -163,6 +167,57 @@ async def reprocess_url(
         "needs_review": result.needs_review,
         "unpinned_picks": result.unpinned_picks,
         "picks": result.picks,
+    }
+
+
+# ---------------------------------------------------------------------------
+# debug-parse — call the LLM parser directly on raw text and return the raw
+# response so we can see no_picks_reason and the picks-before-validation when
+# diagnosing why a submission doesn't extract anything.
+# ---------------------------------------------------------------------------
+
+@router.post("/debug-parse")
+@limiter.limit("30/minute")
+async def debug_parse(
+    request: Request,
+    data: DebugParseRequest,
+    _admin: str = Depends(require_admin),
+):
+    """
+    Run a single chunk of text through the parser's LLM call and echo the
+    raw structured output. No DB writes, no scrapes — just `text in, JSON
+    out` so we can see what the parser actually thinks.
+
+    Useful when a submission lands in needs_review with zero picks and the
+    only feedback is silence — this surfaces `no_picks_reason` and the
+    pre-validation pick list.
+    """
+    from app.pipeline.parser import _deserialize_picks, _llm_parse
+
+    try:
+        raw = await _llm_parse(data.text)
+    except Exception as e:
+        log.error("debug_parse_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Parser call failed: {e}")
+
+    raw_picks = raw.get("picks", []) or []
+    deserialized = _deserialize_picks(raw_picks, data.text)
+    return {
+        "no_picks_reason": raw.get("no_picks_reason"),
+        "raw_picks": raw_picks,
+        "deserialized_count": len(deserialized),
+        "deserialized": [
+            {
+                "sport": p.sport,
+                "league": p.league,
+                "event": p.event,
+                "pick_type": p.pick_type,
+                "pick_detail": p.pick_detail,
+                "odds": p.odds,
+                "confidence": p.confidence,
+            }
+            for p in deserialized
+        ],
     }
 
 
