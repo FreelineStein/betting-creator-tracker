@@ -280,9 +280,13 @@ async def _llm_parse(text: str) -> dict:
 async def _anthropic_parse(text: str) -> dict:
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    # 1024 tokens isn't enough for long parlays — an 8-leg SGP+ with full
+    # detail per leg overruns and the response gets cut off mid-string,
+    # producing JSONDecodeError "Unterminated string". 8192 covers the
+    # longest tickets we've seen with margin.
     message = await client.messages.create(
         model="claude-haiku-4-5",
-        max_tokens=1024,
+        max_tokens=8192,
         messages=[{
             "role": "user",
             "content": PARSE_PROMPT + text,
