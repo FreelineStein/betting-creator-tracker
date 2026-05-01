@@ -157,6 +157,11 @@ async def reprocess_url(
         "deleted_pick_count": deleted_pick_count,
         "new_pick_count": result.picks_extracted,
         "already_tracked": result.already_tracked,
+        # Diagnostic surface — without this we can't tell from a curl whether
+        # `new_pick_count: 0` means the parser returned nothing or means
+        # parsed picks couldn't be pinned to a scheduled game.
+        "needs_review": result.needs_review,
+        "unpinned_picks": result.unpinned_picks,
         "picks": result.picks,
     }
 
