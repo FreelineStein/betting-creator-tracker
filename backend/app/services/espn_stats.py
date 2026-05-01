@@ -28,12 +28,44 @@ LEAGUE_MAP: dict[str, tuple[str, str]] = {
     "NCAAF": ("football", "college-football"),
     "NHL":   ("hockey", "nhl"),
     "MLB":   ("baseball", "mlb"),
+    # Soccer's "primary" path is arbitrary — we don't resolve soccer props
+    # against a single league. Real lookups use _MULTI_LEAGUE_SCOREBOARD.
+    "SOCCER": ("soccer", "eng.1"),
 }
 
 # Sports where the ESPN scoreboard lives at multiple league paths and we want
-# games merged across all of them (e.g., tennis = ATP + WTA tours).
+# games merged across all of them (e.g., tennis = ATP + WTA tours, soccer
+# spans Premier League / Europa / La Liga / etc.).
 _MULTI_LEAGUE_SCOREBOARD: dict[str, list[tuple[str, str]]] = {
     "TENNIS": [("tennis", "atp"), ("tennis", "wta")],
+    "SOCCER": [
+        ("soccer", "eng.1"),           # Premier League
+        ("soccer", "uefa.champions"),  # Champions League
+        ("soccer", "uefa.europa"),     # Europa League
+        ("soccer", "uefa.europa.conf"),# Conference League
+        ("soccer", "esp.1"),           # La Liga
+        ("soccer", "ger.1"),           # Bundesliga
+        ("soccer", "ita.1"),           # Serie A
+        ("soccer", "fra.1"),           # Ligue 1
+        ("soccer", "usa.1"),           # MLS
+        ("soccer", "mex.1"),           # Liga MX
+    ],
+}
+
+# Human-readable league names for ESPN league keys. Used when we tag a
+# ScheduledGame with the league it came from so the UI and pick records can
+# show "Europa League" instead of just "Soccer".
+_LEAGUE_DISPLAY_NAMES: dict[str, str] = {
+    "eng.1": "Premier League",
+    "uefa.champions": "Champions League",
+    "uefa.europa": "Europa League",
+    "uefa.europa.conf": "Conference League",
+    "esp.1": "La Liga",
+    "ger.1": "Bundesliga",
+    "ita.1": "Serie A",
+    "fra.1": "Ligue 1",
+    "usa.1": "MLS",
+    "mex.1": "Liga MX",
 }
 
 # Map prop stat names to ESPN box score label names per sport
@@ -246,6 +278,10 @@ class ScheduledGame:
     # Final scores when completed=True. For tennis, these are sets won.
     home_score: Optional[int] = None
     away_score: Optional[int] = None
+    # Human-readable league this game came from. Only populated for sports
+    # that fan out across multiple ESPN league paths (SOCCER), so the
+    # downstream pick can be tagged with its actual competition.
+    league: Optional[str] = None
 
 
 # Cache scheduled games per (sport, day-window) for 30 minutes.
@@ -378,6 +414,7 @@ async def _fetch_team_sport_games(
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             for sport_path, league in leagues:
+                league_display = _LEAGUE_DISPLAY_NAMES.get(league)
                 for date_str in dates:
                     resp = await client.get(
                         f"{BASE_URL}/{sport_path}/{league}/scoreboard",
@@ -389,7 +426,7 @@ async def _fetch_team_sport_games(
                     for event in data.get("events", []) or []:
                         if event.get("id") in seen_ids:
                             continue
-                        parsed = _parse_scoreboard_event(event, sport)
+                        parsed = _parse_scoreboard_event(event, sport, league_display)
                         if parsed:
                             games.append(parsed)
                             seen_ids.add(parsed.game_id)
@@ -489,7 +526,9 @@ def _parse_tennis_match(match: dict) -> Optional[ScheduledGame]:
     )
 
 
-def _parse_scoreboard_event(event: dict, sport: str) -> Optional[ScheduledGame]:
+def _parse_scoreboard_event(
+    event: dict, sport: str, league: Optional[str] = None,
+) -> Optional[ScheduledGame]:
     competitions = event.get("competitions") or []
     if not competitions:
         return None
@@ -539,6 +578,7 @@ def _parse_scoreboard_event(event: dict, sport: str) -> Optional[ScheduledGame]:
         completed=completed,
         home_score=_parse_competitor_score(home),
         away_score=_parse_competitor_score(away),
+        league=league,
     )
 
 
@@ -642,16 +682,18 @@ def team_matches(query: str, candidate: str, *, use_aliases: bool = True) -> boo
 
 def find_opponent_in_schedule(
     team: str, games: list[ScheduledGame]
-) -> Optional[tuple[str, str, datetime, str]]:
+) -> Optional[tuple[str, str, datetime, str, Optional[str]]]:
     """
     Given a team or player name like "Cavs", "Cleveland Cavaliers", or
     "Medvedev", find the matching scheduled game.
 
-    Returns (matched_team_canonical, opponent_canonical, commence_time, game_id).
-    Both names are the ESPN "short" form (e.g. "Avalanche", "Cavaliers")
-    so callers can normalize the user-entered abbreviation away. The game_id
-    is ESPN's identifier — callers persist it so outcome resolution can do a
-    direct lookup instead of fuzzy team-name matching.
+    Returns (matched_team_canonical, opponent_canonical, commence_time, game_id, league).
+    The first two names are the ESPN "short" form (e.g. "Avalanche",
+    "Cavaliers") so callers can normalize the user-entered abbreviation away.
+    The game_id is ESPN's identifier — callers persist it so outcome
+    resolution can do a direct lookup instead of fuzzy team-name matching.
+    `league` is the human-readable competition name (e.g. "Europa League"),
+    only populated for sports where it's meaningful (currently SOCCER).
 
     Match strategy (in order of preference):
       1. exact match on full or short name
@@ -690,7 +732,7 @@ def find_opponent_in_schedule(
         return None
     candidates.sort(key=lambda c: c[0].commence_time)
     soonest, matched_short, opponent_short = candidates[0]
-    return matched_short, opponent_short, soonest.commence_time, soonest.game_id
+    return matched_short, opponent_short, soonest.commence_time, soonest.game_id, soonest.league
 
 
 async def _get_event_ids(sport_path: str, league: str, date_str: str) -> list[str]:

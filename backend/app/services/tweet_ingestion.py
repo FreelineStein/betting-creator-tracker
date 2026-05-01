@@ -255,6 +255,7 @@ async def ingest_tweet_for_creator(
             source_id=source.source_id,
             creator_id=creator.creator_id,
             sport=parsed.sport,
+            league=parsed.league,
             event=parsed.event,
             event_date=parsed.event_date,
             event_id=parsed.event_id,
@@ -273,6 +274,7 @@ async def ingest_tweet_for_creator(
         result.picks.append({
             "source": extraction_method.value,
             "sport": parsed.sport,
+            "league": parsed.league,
             "event": parsed.event,
             "pick_type": parsed.pick_type,
             "pick_detail": parsed.pick_detail,
@@ -495,7 +497,7 @@ def _pin_pick_to_game(pick: ParsedPick, team: str, games: list) -> None:
     found = find_opponent_in_schedule(team, games)
     if not found:
         return  # caller detects via missing event_id and routes to needs_review
-    matched, opponent, commence_time, game_id = found
+    matched, opponent, commence_time, game_id, league = found
     pick.event_id = game_id
     pick.event_provider = "espn"
     # Adopt the game's commence time when the parser missed event_date.
@@ -507,6 +509,11 @@ def _pin_pick_to_game(pick: ParsedPick, team: str, games: list) -> None:
         pick.pick_detail["team"] = matched
     if _event_needs_opponent(pick.event, team):
         pick.event = f"{matched} vs {opponent}"
+    # Scoreboard match is authoritative on which competition this is — for
+    # soccer we know the actual league only after pinning, since two EPL
+    # teams can also draw each other in Europa knockouts.
+    if league and pick.sport == "SOCCER":
+        pick.league = league
 
 
 def _pin_leg_to_game(leg: dict, team: str, games: list) -> None:
@@ -514,7 +521,7 @@ def _pin_leg_to_game(leg: dict, team: str, games: list) -> None:
     found = find_opponent_in_schedule(team, games)
     if not found:
         return
-    matched, opponent, _commence, game_id = found
+    matched, opponent, _commence, game_id, league = found
     leg["event_id"] = game_id
     leg["event_provider"] = "espn"
     if _event_needs_opponent(leg.get("event"), team):
@@ -522,6 +529,8 @@ def _pin_leg_to_game(leg: dict, team: str, games: list) -> None:
     leg_detail = leg.get("detail")
     if isinstance(leg_detail, dict) and leg_detail.get("team"):
         leg_detail["team"] = matched
+    if league and leg.get("sport") == "SOCCER":
+        leg["league"] = league
 
 
 def _all_picks_pinned(picks: list[ParsedPick]) -> bool:
@@ -544,6 +553,7 @@ def _summarize_unpinned_picks(picks: list[ParsedPick]) -> list[dict]:
     for parsed in picks:
         summaries.append({
             "sport": parsed.sport,
+            "league": parsed.league,
             "event": parsed.event,
             "pick_type": parsed.pick_type,
             "pick_detail": parsed.pick_detail,

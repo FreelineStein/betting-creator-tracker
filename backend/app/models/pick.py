@@ -41,6 +41,7 @@ class Pick(Base):
 
     # Sport and event
     sport = Column(String)                # "NFL", "NBA", "MLB", etc.
+    league = Column(String)               # Specific competition for sports that span many (e.g. SOCCER → "Premier League", "Europa League"). Null for sports where sport == league.
     event = Column(String)                # "Lakers vs Celtics"
     event_date = Column(DateTime(timezone=True))
     # External game identity, pinned at submission time so resolution is a
