@@ -34,6 +34,7 @@ from app.scrapers.base import RawPost
 from app.scrapers.twitter import extract_image_url, extract_text_from_image
 from app.services.espn_stats import find_opponent_in_schedule, get_scheduled_games
 from app.services.odds_api import find_odds_for_pick, get_odds_for_sport
+from app.services.outcome_resolver import parlay_all_legs_unresolvable
 from app.posthog_client import posthog_client
 
 log = structlog.get_logger()
@@ -352,12 +353,29 @@ async def _extract_picks(
 
 
 def _filter_low_quality(picks: list[ParsedPick]) -> list[ParsedPick]:
-    """Drop low-confidence picks and empty parlay shells."""
-    return [
-        p for p in picks
-        if p.confidence >= MIN_PICK_CONFIDENCE
-        and not (p.pick_type == "parlay" and not p.pick_detail.get("legs"))
-    ]
+    """
+    Drop low-confidence picks and parlay shells the parser couldn't fill.
+
+    Three things get filtered out:
+      1. Picks below MIN_PICK_CONFIDENCE.
+      2. Parlays with no legs at all (`legs` empty list).
+      3. Parlays where every leg has empty detail — the signature of a
+         caption that says "5 props in a massive game" but doesn't list
+         them. Treating those as "no picks" lets ingestion fall through
+         to image OCR, which is where the actual bet-slip data lives.
+    """
+    keep: list[ParsedPick] = []
+    for p in picks:
+        if p.confidence < MIN_PICK_CONFIDENCE:
+            continue
+        if p.pick_type == "parlay":
+            legs = (p.pick_detail or {}).get("legs") or []
+            if not legs:
+                continue
+            if parlay_all_legs_unresolvable(legs):
+                continue
+        keep.append(p)
+    return keep
 
 
 # ---------------------------------------------------------------------------
