@@ -245,41 +245,54 @@ async def resolve_pending_outcomes():
         if pinned_pending:
             log.info("Resolving pinned picks via event_id", count=len(pinned_pending))
         for pick in pinned_pending:
-            if pick.pick_type == "parlay":
-                updated_detail, new_status = await resolve_parlay_legs_pinned(
-                    pick.pick_detail or {},
-                    anchor_date=pick.event_date,
-                )
-                pick.pick_detail = updated_detail
-                flag_modified(pick, "pick_detail")
-            elif pick.pick_type == "prop":
-                new_status = await resolve_prop_pinned(
-                    pick.pick_detail or {}, pick.sport, pick.event_id,
-                )
-            else:
-                sched = await find_completed_game_by_event_id(
-                    pick.sport, pick.event_id, anchor_date=pick.event_date,
-                )
-                if not sched or not sched.completed:
-                    continue
-                game = scheduled_to_game_result(sched)
-                new_status = resolve_pick(pick.pick_type, pick.pick_detail or {}, game)
+            # Per-pick try/except so one throw (e.g. an unimplemented soccer
+            # market in a parlay leg, a prop with a malformed stat lookup)
+            # can't roll back the entire transaction and undo every legit
+            # resolution that already happened in this batch.
+            try:
+                if pick.pick_type == "parlay":
+                    updated_detail, new_status = await resolve_parlay_legs_pinned(
+                        pick.pick_detail or {},
+                        anchor_date=pick.event_date,
+                    )
+                    pick.pick_detail = updated_detail
+                    flag_modified(pick, "pick_detail")
+                elif pick.pick_type == "prop":
+                    new_status = await resolve_prop_pinned(
+                        pick.pick_detail or {}, pick.sport, pick.event_id,
+                    )
+                else:
+                    sched = await find_completed_game_by_event_id(
+                        pick.sport, pick.event_id, anchor_date=pick.event_date,
+                    )
+                    if not sched or not sched.completed:
+                        continue
+                    game = scheduled_to_game_result(sched)
+                    new_status = resolve_pick(pick.pick_type, pick.pick_detail or {}, game)
 
-            if new_status != PickStatus.pending:
-                pick.status = new_status
-                pick.outcome_resolved_at = now
-                updated_creators.add(pick.creator_id)
-                resolved_count += 1
-                if new_status == PickStatus.won:
-                    wins += 1
-                elif new_status == PickStatus.lost:
-                    losses += 1
-                elif new_status == PickStatus.push:
-                    pushes += 1
-                log.info(
-                    "Pinned pick resolved",
-                    pick_id=pick.pick_id, pick_type=pick.pick_type,
-                    status=new_status.value, event_id=pick.event_id,
+                if new_status != PickStatus.pending:
+                    pick.status = new_status
+                    pick.outcome_resolved_at = now
+                    updated_creators.add(pick.creator_id)
+                    resolved_count += 1
+                    if new_status == PickStatus.won:
+                        wins += 1
+                    elif new_status == PickStatus.lost:
+                        losses += 1
+                    elif new_status == PickStatus.push:
+                        pushes += 1
+                    log.info(
+                        "Pinned pick resolved",
+                        pick_id=pick.pick_id, pick_type=pick.pick_type,
+                        status=new_status.value, event_id=pick.event_id,
+                    )
+            except Exception:
+                log.exception(
+                    "Pinned pick resolution raised",
+                    pick_id=pick.pick_id,
+                    pick_type=pick.pick_type,
+                    sport=pick.sport,
+                    event_id=pick.event_id,
                 )
 
         # Legacy pass operates only on picks without a pinned event_id.
@@ -419,67 +432,79 @@ async def resolve_pending_outcomes():
         if prop_picks:
             log.info("Resolving prop picks via ESPN", count=len(prop_picks))
             for pick in prop_picks:
-                sport = pick.sport
-                if not sport:
-                    continue
-                # Fallback prop picks have no real event_date — find_player_stat
-                # would happily resolve against the player's most recent game,
-                # which may not be the one the user picked. Skip until the
-                # parser supplies a real event_date.
-                if pick.pick_id in fallback_pick_ids:
-                    log.info("Skipping fallback prop — game uncertain", pick_id=pick.pick_id)
-                    continue
-                new_status = await resolve_prop(
-                    pick.pick_detail or {},
-                    sport,
-                    _effective_event_date(pick),
-                )
-                if new_status != PickStatus.pending:
-                    pick.status = new_status
-                    pick.outcome_resolved_at = now
-                    updated_creators.add(pick.creator_id)
-                    resolved_count += 1
-                    log.info("Resolved prop pick", pick_id=pick.pick_id, status=new_status.value)
+                try:
+                    sport = pick.sport
+                    if not sport:
+                        continue
+                    # Fallback prop picks have no real event_date — find_player_stat
+                    # would happily resolve against the player's most recent game,
+                    # which may not be the one the user picked. Skip until the
+                    # parser supplies a real event_date.
+                    if pick.pick_id in fallback_pick_ids:
+                        log.info("Skipping fallback prop — game uncertain", pick_id=pick.pick_id)
+                        continue
+                    new_status = await resolve_prop(
+                        pick.pick_detail or {},
+                        sport,
+                        _effective_event_date(pick),
+                    )
+                    if new_status != PickStatus.pending:
+                        pick.status = new_status
+                        pick.outcome_resolved_at = now
+                        updated_creators.add(pick.creator_id)
+                        resolved_count += 1
+                        log.info("Resolved prop pick", pick_id=pick.pick_id, status=new_status.value)
 
-                    if new_status == PickStatus.won:
-                        wins += 1
-                    elif new_status == PickStatus.lost:
-                        losses += 1
-                    elif new_status == PickStatus.push:
-                        pushes += 1
+                        if new_status == PickStatus.won:
+                            wins += 1
+                        elif new_status == PickStatus.lost:
+                            losses += 1
+                        elif new_status == PickStatus.push:
+                            pushes += 1
+                except Exception:
+                    log.exception(
+                        "Prop pick resolution raised",
+                        pick_id=pick.pick_id, sport=pick.sport,
+                    )
 
         # Resolve parlay picks per-leg
         parlay_picks = [p for p in pending if p.pick_type == "parlay" and p.status == PickStatus.pending]
         if parlay_picks:
             log.info("Resolving parlay picks per-leg", count=len(parlay_picks))
             for pick in parlay_picks:
-                # Same caution as props: per-leg matching uses event_date, and
-                # for fallback picks that's just the submission time. Skip.
-                if pick.pick_id in fallback_pick_ids:
-                    log.info("Skipping fallback parlay — game uncertain", pick_id=pick.pick_id)
-                    continue
-                updated_detail, new_status = await resolve_parlay_legs(
-                    pick.pick_detail or {},
-                    _effective_event_date(pick),
-                )
-                # Always update pick_detail to persist per-leg results
-                from sqlalchemy.orm.attributes import flag_modified
-                pick.pick_detail = updated_detail
-                flag_modified(pick, "pick_detail")
+                try:
+                    # Same caution as props: per-leg matching uses event_date, and
+                    # for fallback picks that's just the submission time. Skip.
+                    if pick.pick_id in fallback_pick_ids:
+                        log.info("Skipping fallback parlay — game uncertain", pick_id=pick.pick_id)
+                        continue
+                    updated_detail, new_status = await resolve_parlay_legs(
+                        pick.pick_detail or {},
+                        _effective_event_date(pick),
+                    )
+                    # Always update pick_detail to persist per-leg results
+                    from sqlalchemy.orm.attributes import flag_modified
+                    pick.pick_detail = updated_detail
+                    flag_modified(pick, "pick_detail")
 
-                if new_status != PickStatus.pending:
-                    pick.status = new_status
-                    pick.outcome_resolved_at = now
-                    updated_creators.add(pick.creator_id)
-                    resolved_count += 1
-                    log.info("Parlay resolved", pick_id=pick.pick_id, status=new_status.value)
+                    if new_status != PickStatus.pending:
+                        pick.status = new_status
+                        pick.outcome_resolved_at = now
+                        updated_creators.add(pick.creator_id)
+                        resolved_count += 1
+                        log.info("Parlay resolved", pick_id=pick.pick_id, status=new_status.value)
 
-                    if new_status == PickStatus.won:
-                        wins += 1
-                    elif new_status == PickStatus.lost:
-                        losses += 1
-                    elif new_status == PickStatus.push:
-                        pushes += 1
+                        if new_status == PickStatus.won:
+                            wins += 1
+                        elif new_status == PickStatus.lost:
+                            losses += 1
+                        elif new_status == PickStatus.push:
+                            pushes += 1
+                except Exception:
+                    log.exception(
+                        "Parlay pick resolution raised",
+                        pick_id=pick.pick_id, sport=pick.sport,
+                    )
 
         db.flush()
 
