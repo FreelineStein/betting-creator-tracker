@@ -13,11 +13,15 @@ Targets:
     AND event_date IS NOT NULL
     AND sport IS IN SPORT_KEY_MAP
 
-Groups by (sport_key, snapshot_iso) — snapshot = (event_date - 10min)
-floored to the nearest 30 min. One historical fetch serves every pick in
-that bucket. Each historical call costs ~30 credits (3 markets × us
-region × 10x historical multiplier per The Odds API pricing), so a
-backfill of a few dozen picks is well within the monthly cap.
+Groups by (sport_key, snapshot_iso) — snapshot is `Source.posted_at`
+floored to the nearest 30 min, falling back to `(event_date - 10min)` if
+`posted_at` is null. Post-time is the right anchor: it's the line the
+creator actually had when they made the pick, so the matcher won't lose
+to line drift between post and kickoff. One historical fetch serves
+every pick in that bucket. Each historical call costs ~30 credits (3
+markets × us region × 10x historical multiplier per The Odds API
+pricing), so a backfill of a few dozen picks is well within the monthly
+cap.
 
 Always run --dry-run first. Reuses the live find_odds_for_pick matcher
 so the wire format and team-name logic stay in lockstep with submission.
@@ -41,8 +45,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx  # noqa: E402
 
+from sqlalchemy.orm import joinedload  # noqa: E402
+
 from app.database import SessionLocal  # noqa: E402
-from app.models import Pick, PickStatus  # noqa: E402
+from app.models import Pick, PickStatus, Source  # noqa: E402
 from app.services.odds_api import SPORT_KEY_MAP, find_odds_for_pick  # noqa: E402
 
 HISTORICAL_BASE = "https://api.the-odds-api.com/v4/historical/sports"
@@ -73,6 +79,7 @@ def _pick_type_str(pick: Pick) -> str:
 def collect_candidates(db, limit):
     q = (
         db.query(Pick)
+        .options(joinedload(Pick.source))
         .filter(
             Pick.odds.is_(None),
             Pick.status.in_([PickStatus.won, PickStatus.lost, PickStatus.push]),
@@ -86,18 +93,29 @@ def collect_candidates(db, limit):
     return q.all()
 
 
+def _snapshot_target(pick: Pick) -> datetime:
+    """Pick the timestamp we should query historical odds at."""
+    posted = getattr(pick.source, "posted_at", None) if pick.source else None
+    if posted is not None:
+        if posted.tzinfo is None:
+            posted = posted.replace(tzinfo=timezone.utc)
+        return posted
+    event_dt = pick.event_date
+    if event_dt.tzinfo is None:
+        event_dt = event_dt.replace(tzinfo=timezone.utc)
+    return event_dt - timedelta(minutes=10)
+
+
 def group_by_snapshot(picks):
     groups: dict[tuple[str, str], list[Pick]] = defaultdict(list)
     for pick in picks:
         sport_key = SPORT_KEY_MAP.get(pick.sport.upper())
         if not sport_key:
             continue
-        event_dt = pick.event_date
-        if event_dt.tzinfo is None:
-            event_dt = event_dt.replace(tzinfo=timezone.utc)
-        # Snap to the nearest 30-min boundary just before kickoff. The Odds
-        # API returns whichever snapshot is closest to the requested ts.
-        snapshot = _floor_30min(event_dt - timedelta(minutes=10))
+        # Floor to the nearest 30-min boundary so picks posted within the
+        # same window share one historical fetch. The Odds API returns
+        # whichever snapshot is closest to the requested ts.
+        snapshot = _floor_30min(_snapshot_target(pick))
         iso = snapshot.strftime("%Y-%m-%dT%H:%M:%SZ")
         groups[(sport_key, iso)].append(pick)
     return groups
