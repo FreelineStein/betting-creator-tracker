@@ -209,7 +209,17 @@ def _resolve_spread(pick_detail: dict, game: GameResult) -> PickStatus:
 
 
 def _resolve_over_under(pick_detail: dict, game: GameResult) -> PickStatus:
-    """Did the combined score go over or under the total?"""
+    """
+    Did the score go over or under the total?
+
+    Two flavors:
+      - Game total (no `team` in detail): combined home + away vs total.
+      - Team total (detail.team set): just that one team's score vs total.
+        Standard soccer market — "Aston Villa Team Total Goals Over 0.5"
+        wants Villa's score alone, not the matchup total.
+    """
+    from app.services.espn_stats import team_matches
+
     direction = pick_detail.get("direction", "").lower()
     total_str = str(pick_detail.get("total", "0"))
 
@@ -222,14 +232,27 @@ def _resolve_over_under(pick_detail: dict, game: GameResult) -> PickStatus:
         log.warning("Could not parse O/U total", total=pick_detail.get("total"))
         return PickStatus.pending
 
-    combined = game.home_score + game.away_score
+    team = (pick_detail.get("team") or "").strip()
+    if team:
+        if team_matches(team, game.home_team):
+            value = game.home_score
+        elif team_matches(team, game.away_team):
+            value = game.away_score
+        else:
+            log.warning(
+                "Team-total team not found in game",
+                team=team, home=game.home_team, away=game.away_team,
+            )
+            return PickStatus.pending
+    else:
+        value = game.home_score + game.away_score
 
-    if combined == total:
+    if value == total:
         return PickStatus.push
     elif direction == "over":
-        return PickStatus.won if combined > total else PickStatus.lost
+        return PickStatus.won if value > total else PickStatus.lost
     elif direction == "under":
-        return PickStatus.won if combined < total else PickStatus.lost
+        return PickStatus.won if value < total else PickStatus.lost
     else:
         return PickStatus.pending
 
@@ -314,7 +337,10 @@ async def resolve_prop_pinned(
     if _is_first_inning_runs_prop(pick_detail.get("prop", "")):
         return await _resolve_first_inning_runs(pick_detail, event_id)
 
-    from app.services.espn_stats import find_player_stat_in_event, find_player_stat
+    from app.services.espn_stats import (
+        find_player_stat_in_event, find_player_stat,
+        find_soccer_player_stat_in_event,
+    )
 
     player = pick_detail.get("player", "")
     prop = pick_detail.get("prop", "")
@@ -336,10 +362,18 @@ async def resolve_prop_pinned(
         log.warning("Could not parse prop line", line=line_str)
         return PickStatus.pending
 
-    result = await find_player_stat_in_event(sport, event_id, player, prop)
-    if result is None and event_date is not None:
+    # Soccer player props read different stat keys and live in a different
+    # ESPN structure (summary.rosters[].roster[].stats[]) than the
+    # team-sport box scores — route them through the soccer-specific lookup.
+    if sport and sport.upper() == "SOCCER":
+        result = await find_soccer_player_stat_in_event(event_id, player, prop)
+    else:
+        result = await find_player_stat_in_event(sport, event_id, player, prop)
+    if result is None and event_date is not None and (not sport or sport.upper() != "SOCCER"):
         # Pinned-game miss — try the wider day-window search in case the
         # LLM pinned to the wrong game (player isn't on either team there).
+        # Skipped for soccer because find_player_stat doesn't know how to
+        # walk soccer summary rosters; the pinned soccer lookup is final.
         result = await find_player_stat(player, prop, sport, event_date)
         if result is not None:
             log.info(
