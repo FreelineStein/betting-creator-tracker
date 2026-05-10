@@ -442,3 +442,27 @@ def _parlay_status_from_legs(legs: list[dict]) -> PickStatus:
         return PickStatus.won
     # Some still pending
     return PickStatus.pending
+
+
+def parlay_all_legs_unresolvable(legs: list) -> bool:
+    """
+    True if every parlay leg has detail with no actionable fields — the
+    signature of a parser failure preserved on the row (e.g. an SGP from
+    a bet-slip screenshot where OCR couldn't read the legs). These
+    parlays can never resolve no matter how often the resolver runs,
+    because there's no market data to evaluate against.
+
+    The caller should mark the pick as `void` so it falls out of the
+    pending bucket instead of sitting there indefinitely.
+    """
+    has_real_leg = False
+    for leg in legs:
+        if not isinstance(leg, dict):
+            continue
+        has_real_leg = True
+        detail = leg.get("detail")
+        if not isinstance(detail, dict):
+            return False  # unexpected shape — don't void, leave for triage
+        if any(v not in (None, "") for v in detail.values()):
+            return False  # at least one leg carries actionable data
+    return has_real_leg

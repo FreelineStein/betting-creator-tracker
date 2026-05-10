@@ -169,6 +169,7 @@ async def resolve_pending_outcomes():
     from app.services.outcome_resolver import (
         resolve_pick, resolve_prop, resolve_parlay_legs, scheduled_to_game_result,
         resolve_prop_pinned, resolve_parlay_legs_pinned,
+        parlay_all_legs_unresolvable,
     )
     from app.services.record_updater import recompute_record
 
@@ -257,6 +258,18 @@ async def resolve_pending_outcomes():
                     )
                     pick.pick_detail = updated_detail
                     flag_modified(pick, "pick_detail")
+                    # Parser-failure rescue: if the parlay is still pending
+                    # AND every leg has empty detail (placeholder rows from a
+                    # bet-slip screenshot the parser couldn't read), void it
+                    # so it doesn't sit pending forever.
+                    if new_status == PickStatus.pending and parlay_all_legs_unresolvable(
+                        (updated_detail or {}).get("legs") or []
+                    ):
+                        new_status = PickStatus.void
+                        log.info(
+                            "Parlay voided — all legs have empty detail",
+                            pick_id=pick.pick_id, event_id=pick.event_id,
+                        )
                 elif pick.pick_type == "prop":
                     new_status = await resolve_prop_pinned(
                         pick.pick_detail or {}, pick.sport, pick.event_id,
@@ -486,6 +499,15 @@ async def resolve_pending_outcomes():
                     from sqlalchemy.orm.attributes import flag_modified
                     pick.pick_detail = updated_detail
                     flag_modified(pick, "pick_detail")
+                    # Same parser-failure rescue as the pinned path.
+                    if new_status == PickStatus.pending and parlay_all_legs_unresolvable(
+                        (updated_detail or {}).get("legs") or []
+                    ):
+                        new_status = PickStatus.void
+                        log.info(
+                            "Parlay voided — all legs have empty detail",
+                            pick_id=pick.pick_id,
+                        )
 
                     if new_status != PickStatus.pending:
                         pick.status = new_status
