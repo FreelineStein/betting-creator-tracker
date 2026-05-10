@@ -38,9 +38,10 @@ export default async function Home() {
       }
     }
 
-    featured.sort((a, b) =>
-      FEATURED_CREATOR_NAMES.indexOf(a.creator.display_name) -
-      FEATURED_CREATOR_NAMES.indexOf(b.creator.display_name)
+    featured.sort(
+      (a, b) =>
+        FEATURED_CREATOR_NAMES.indexOf(a.creator.display_name) -
+        FEATURED_CREATOR_NAMES.indexOf(b.creator.display_name),
     );
   }
 
@@ -49,24 +50,23 @@ export default async function Home() {
   return (
     <div>
       {/* Hero */}
-      <div className="mb-12">
-        <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-3">
+      <div className="mb-14">
+        <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mb-4">
           Transparent Betting Records
         </div>
-        <h1 className="font-display font-black text-5xl sm:text-6xl tracking-display leading-none text-white">
-          Every pick.{" "}
-          <span className="text-signal">Every loss.</span>{" "}
-          On the record.
+        <h1 className="font-display font-extrabold text-5xl sm:text-6xl tracking-display leading-[1.0] text-ink text-balance">
+          Every pick. <span className="text-amber-deep">Every loss.</span> On the record.
         </h1>
-        <p className="text-ink-400 mt-4 max-w-xl">
-          Your favorite creator&apos;s publicly posted picks. We surface the data — wins, losses, and everything in between — so you can decide who&apos;s worth tailing.
+        <p className="text-ink-500 mt-5 max-w-xl text-[15px] leading-relaxed">
+          Your favorite creator&apos;s publicly posted picks. We surface the data —
+          wins, losses, and everything in between — so you can decide who&apos;s worth tailing.
         </p>
       </div>
 
       {error && (
-        <div className="bg-alert-dim border border-alert/40 rounded-xl p-4 text-alert-deep text-sm">
+        <div className="rounded-[10px] border border-rule bg-paper-2 p-4 text-ink-700 text-sm">
           Could not connect to API. Make sure the backend is running on{" "}
-          <code className="font-mono bg-alert/10 px-1.5 py-0.5 rounded text-alert">
+          <code className="font-mono bg-paper-3 px-1.5 py-0.5 rounded text-ink">
             localhost:8000
           </code>
           .
@@ -74,12 +74,12 @@ export default async function Home() {
       )}
 
       {!error && !hasAnyCreators && (
-        <div className="text-ink-600 text-sm">No creators found.</div>
+        <div className="text-ink-500 text-sm">No creators found.</div>
       )}
 
       {!error && featured.length > 0 && (
         <section>
-          <h2 className="font-display font-black text-3xl tracking-display text-white mb-5">
+          <h2 className="font-display font-extrabold text-3xl tracking-display text-ink mb-5">
             Popular Creators
           </h2>
           <CreatorCards creators={featured} />
@@ -87,21 +87,21 @@ export default async function Home() {
       )}
 
       {!error && lesserKnown.length > 0 && (
-        <section className="mt-12">
-          <h2 className="font-display font-black text-3xl tracking-display text-white mb-5">
+        <section className="mt-14">
+          <h2 className="font-display font-extrabold text-3xl tracking-display text-ink mb-5">
             Lesser Known Creators
           </h2>
           <CreatorCards creators={lesserKnown} />
         </section>
       )}
 
-      <p className="text-xs text-ink-600 mt-8">
+      <p className="text-xs text-ink-500 mt-10">
         Picks sourced from public social media posts. Records update as outcomes are resolved.
       </p>
 
       {/* How it works */}
-      <div className="mt-12 border-t border-ink-800 pt-8">
-        <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-4">
+      <div className="mt-14 border-t border-rule pt-10">
+        <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mb-5">
           How it works
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
@@ -124,19 +124,19 @@ export default async function Home() {
           ].map((step) => (
             <div
               key={step.n}
-              className="rounded-xl border border-ink-800 bg-ink-800/30 p-5"
+              className="rounded-[14px] border border-rule bg-paper-2 p-5 shadow-card"
             >
-              <div className="font-mono text-[10px] uppercase tracking-label text-signal mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-label-x font-semibold text-amber-deep mb-2">
                 {step.n}
               </div>
-              <div className="font-display font-black text-lg tracking-display text-white mb-1">
+              <div className="font-display font-extrabold text-lg tracking-tight text-ink mb-1">
                 {step.title}
               </div>
-              <p className="text-ink-400 leading-relaxed">{step.body}</p>
+              <p className="text-ink-500 leading-relaxed">{step.body}</p>
             </div>
           ))}
         </div>
-        <p className="text-xs text-ink-600 mt-6">
+        <p className="text-xs text-ink-500 mt-6">
           For entertainment and transparency purposes only. Not financial advice.
         </p>
       </div>

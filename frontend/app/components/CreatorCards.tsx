@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePostHog } from "posthog-js/react";
-import type { Pick } from "../lib/api";
-import { Badge, WLRecord } from "../../components/brand";
+import type { Pick, Creator, CreatorRecord } from "../lib/api";
+import { StatTile } from "../../components/brand";
 
 const PLATFORM_ICONS: Record<string, string> = {
   twitter: "\u{1D54F}",
@@ -30,24 +30,41 @@ const SPORT_ICONS: Record<string, string> = {
   PGA: "⛳",
 };
 
-function statusToBadgeVariant(status: string): "win" | "loss" | "push" | null {
-  if (status === "won") return "win";
-  if (status === "lost") return "loss";
-  if (status === "push") return "push";
-  return null;
+// Banner gradients per dominant sport — sport-tinted, with an amber radial top-left.
+const SPORT_BANNER: Record<string, [string, string, string]> = {
+  NBA: ["#C2410C", "#E89F35", "#7A4F0F"],
+  NFL: ["#15275C", "#1F3A8A", "#0E1A40"],
+  CFB: ["#15275C", "#1F3A8A", "#0E1A40"],
+  NCAAF: ["#15275C", "#1F3A8A", "#0E1A40"],
+  MLB: ["#7A1F1F", "#B45309", "#3F1010"],
+  WBC: ["#7A1F1F", "#B45309", "#3F1010"],
+  NHL: ["#0F4C75", "#1F6FB8", "#072339"],
+  SOCCER: ["#1F5C2E", "#3B8C4E", "#0F2E18"],
+  TENNIS: ["#5C7A1F", "#A2C24F", "#3B4F12"],
+  UFC: ["#2A1A1F", "#4A2A30", "#1A0E12"],
+  PGA: ["#1F4A2F", "#2E6B45", "#0F2A1A"],
+  default: ["#1F3A8A", "#2E4A9F", "#15275C"],
+};
+
+function bannerFor(sport: string | null): string {
+  const [a, b, c] = SPORT_BANNER[sport ?? "default"] ?? SPORT_BANNER.default;
+  return `radial-gradient(circle at 22% 50%, rgba(255,179,71,0.22), transparent 60%), linear-gradient(135deg, ${a} 0%, ${b} 50%, ${c} 100%)`;
 }
 
-function StatusPill({ status }: { status: string }) {
-  const variant = statusToBadgeVariant(status);
-  if (variant) {
-    return <Badge variant={variant}>{status}</Badge>;
+function dominantSport(
+  accuracy: Record<string, { wins: number; losses: number }> | null | undefined,
+): string | null {
+  if (!accuracy) return null;
+  let top: string | null = null;
+  let max = -1;
+  for (const [sport, stats] of Object.entries(accuracy)) {
+    const n = (stats.wins ?? 0) + (stats.losses ?? 0);
+    if (n > max) {
+      max = n;
+      top = sport;
+    }
   }
-  // pending/void — neutral, no semantic color per brand
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-ink-800/60 text-ink-400 px-2.5 py-1 text-xs font-bold uppercase tracking-label">
-      {status}
-    </span>
-  );
+  return max > 0 ? top : null;
 }
 
 function formatPickDetail(type: string, detail: Record<string, string | number>): string {
@@ -66,266 +83,361 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function isActive(dateStr: string | null, fallback: string): boolean {
-  // Active = event hasn't happened yet, OR event/log is the current calendar day.
-  // Falls back to logged_at when event_date is missing (legacy picks).
-  const ts = new Date(dateStr ?? fallback);
+function formatTrackedSince(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  // "Mar '25"
+  return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }).replace(" ", " '");
+}
+
+function isActive(pick: Pick): boolean {
+  const ts = new Date(pick.event_date ?? pick.logged_at);
   if (Number.isNaN(ts.getTime())) return false;
   if (ts.getTime() >= Date.now()) return true;
-  return ts.toLocaleDateString() === new Date().toLocaleDateString();
+  // Within 7 days past — keep recent resolved picks visible
+  return Date.now() - ts.getTime() < 7 * 24 * 3600 * 1000;
+}
+
+function earliestLoggedAt(picks: Pick[]): string | null {
+  let earliest: number | null = null;
+  let earliestIso: string | null = null;
+  for (const p of picks) {
+    if (!p.logged_at) continue;
+    const t = new Date(p.logged_at).getTime();
+    if (Number.isNaN(t)) continue;
+    if (earliest === null || t < earliest) {
+      earliest = t;
+      earliestIso = p.logged_at;
+    }
+  }
+  return earliestIso;
+}
+
+type Streak = { kind: "win" | "loss"; count: number } | null;
+
+function computeStreak(picks: Pick[]): Streak {
+  const resolved = picks
+    .filter((p) => p.status === "won" || p.status === "lost")
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.event_date ?? b.logged_at).getTime() -
+        new Date(a.event_date ?? a.logged_at).getTime(),
+    );
+  if (resolved.length === 0) return null;
+  const kind = resolved[0].status === "won" ? "win" : "loss";
+  let count = 0;
+  for (const p of resolved) {
+    const matches = (kind === "win" && p.status === "won") || (kind === "loss" && p.status === "lost");
+    if (!matches) break;
+    count++;
+  }
+  return { kind, count };
+}
+
+function StreakChip({ streak }: { streak: NonNullable<Streak> }) {
+  const isWin = streak.kind === "win";
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-label"
+      style={{
+        background: "rgba(20,19,15,0.45)",
+        border: "1px solid rgba(255,255,255,0.12)",
+        backdropFilter: "blur(8px)",
+        color: "rgba(245,242,236,0.95)",
+      }}
+    >
+      <span
+        className="inline-block rounded-full"
+        style={{
+          width: 6,
+          height: 6,
+          background: isWin ? "#FFB347" : "#A8A096",
+          boxShadow: isWin ? "0 0 0 4px rgba(255,179,71,0.30)" : "none",
+        }}
+      />
+      {isWin ? "W" : "L"}
+      {streak.count}
+    </span>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  // Lowercase intentional — the color carries weight.
+  if (status === "won") {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold tracking-label bg-amber-dim text-amber-deep border border-amber-deep/30">
+        won
+      </span>
+    );
+  }
+  if (status === "lost") {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold tracking-label bg-stone-dim text-ink-500 border border-transparent">
+        lost
+      </span>
+    );
+  }
+  if (status === "push") {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold tracking-label bg-paper-2 text-ink-500 border border-rule">
+        push
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold tracking-label text-ink-500 border border-dashed border-rule">
+      {status}
+    </span>
+  );
 }
 
 function LegDot({ result }: { result: string }) {
-  if (result === "won") return <span className="w-1.5 h-1.5 rounded-full bg-signal shrink-0" />;
-  if (result === "lost") return <span className="w-1.5 h-1.5 rounded-full bg-alert shrink-0" />;
-  if (result === "push") return <span className="w-1.5 h-1.5 rounded-full bg-ink-400 shrink-0" />;
-  if (result === "pending") return <span className="w-1.5 h-1.5 rounded-full bg-white/40 shrink-0" />;
-  return null;
+  const cls =
+    result === "won"
+      ? "bg-amber"
+      : result === "lost"
+        ? "bg-stone"
+        : result === "push"
+          ? "bg-ink-300"
+          : "bg-ink-300/40";
+  return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cls}`} />;
 }
 
-function winRateTone(winRate: number | null): string {
-  if (winRate === null) return "text-ink-600";
-  if (winRate >= 58) return "text-signal";
-  if (winRate >= 52) return "text-ink-400";
-  return "text-alert";
-}
-
-function StatColumn({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Avatar({ creator }: { creator: Creator }) {
+  if (creator.profile_image_url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={creator.profile_image_url}
+        alt={creator.display_name}
+        className="w-[52px] h-[52px] rounded-[12px] object-cover shadow-avatar shrink-0"
+      />
+    );
+  }
   return (
-    <div className="text-center">
-      <div className="font-mono text-[9px] text-ink-400 uppercase tracking-label">{label}</div>
-      <div className="mt-0.5">{children}</div>
+    <div
+      className="w-[52px] h-[52px] rounded-[12px] bg-amber text-ink flex items-center justify-center font-display font-extrabold text-[22px] shadow-avatar shrink-0"
+      aria-hidden="true"
+    >
+      {creator.display_name.charAt(0).toUpperCase()}
     </div>
   );
 }
 
-function hasRecord(record: { total_picks: number } | null): boolean {
-  return record !== null && record.total_picks > 0;
-}
-
 interface CreatorCardData {
-  creator: any;
-  record: any;
+  creator: Creator;
+  record: CreatorRecord | null;
   picks: Pick[];
 }
 
 export default function CreatorCards({ creators }: { creators: CreatorCardData[] }) {
   const posthog = usePostHog();
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {creators.map(({ creator, record, picks }) => {
-        const activePicks = picks.filter((p) => isActive(p.event_date, p.logged_at));
-        const recentPicks = activePicks.slice(0, 5);
-        const pendingPicks = activePicks.filter((p) => p.status === "pending");
-        const winRate = hasRecord(record) ? Math.round(record!.win_rate * 100) : null;
-        const winRateColor = winRateTone(winRate);
+        const sport = dominantSport(record?.accuracy_by_sport);
+        const trackedSince = formatTrackedSince(earliestLoggedAt(picks));
+        const activePicks = picks.filter(isActive);
+        const recentPicks = activePicks.slice(0, 3);
+        const streak = computeStreak(picks);
+        const hasRecord = record !== null && record.total_picks > 0;
+        const winRatePct = hasRecord ? Math.round((record as CreatorRecord).win_rate * 100) : null;
 
         return (
-          <div
+          <Link
             key={creator.creator_id}
-            className="bg-ink-800/30 rounded-2xl border border-ink-800 overflow-hidden"
+            href={`/creators/${creator.creator_id}`}
+            onClick={() =>
+              posthog?.capture("creator_card_clicked", {
+                creator_id: creator.creator_id,
+                creator_name: creator.display_name,
+                source: "card_body",
+              })
+            }
+            className="group flex flex-col h-full bg-paper-2 rounded-card border border-rule shadow-card overflow-hidden transition-colors"
           >
-            {/* Creator Header */}
-            <div className="px-6 pt-5 pb-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {creator.profile_image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={creator.profile_image_url}
-                    alt={creator.display_name}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-ink-800 border border-ink-800 flex items-center justify-center text-signal font-display font-black text-lg">
-                    {creator.display_name.charAt(0)}
-                  </div>
-                )}
-                <div>
-                  <h2 className="font-sans font-bold text-xl leading-none text-white">
+            {/* Banner */}
+            <div
+              className="relative h-[110px] border-b border-rule"
+              style={{ background: bannerFor(sport) }}
+            >
+              {/* 45° pinstripe overlay */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,255,255,0.05) 8px 9px)",
+                }}
+              />
+              {/* Bottom-darken — guarantees the inset white name reads on every sport gradient */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{
+                  background: "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.20) 100%)",
+                }}
+              />
+
+              {/* Tracked-since stamp */}
+              {trackedSince && (
+                <span
+                  className="absolute top-[14px] left-[18px] z-[1] inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-label whitespace-nowrap"
+                  style={{ color: "rgba(245,242,236,0.85)" }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
+                    <path
+                      d="M6 1l1.5 3 3.3.5-2.4 2.3.6 3.3L6 8.5 3 10.1l.6-3.3L1.2 4.5 4.5 4 6 1z"
+                      fill="#FFB347"
+                    />
+                  </svg>
+                  Tracked since {trackedSince}
+                </span>
+              )}
+
+              {/* Streak chip */}
+              {streak && streak.count > 0 && (
+                <span className="absolute top-[12px] right-[14px] z-[1]">
+                  <StreakChip streak={streak} />
+                </span>
+              )}
+
+              {/* Inset avatar + name + handles */}
+              <div className="absolute left-[18px] right-[14px] bottom-[12px] z-[1] flex items-end gap-3">
+                <Avatar creator={creator} />
+                <div className="min-w-0 pb-0.5">
+                  <div
+                    className="font-display font-extrabold text-[19px] leading-[1.05] tracking-tight"
+                    style={{
+                      color: "#F5F2EC",
+                      textShadow: "0 1px 2px rgba(0,0,0,0.30)",
+                    }}
+                  >
                     {creator.display_name}
-                  </h2>
-                  <div className="flex gap-2 mt-1.5">
-                    {creator.platforms.map((p: any) => (
-                      <a
+                  </div>
+                  <div className="flex flex-wrap gap-2.5 mt-1">
+                    {creator.platforms.map((p) => (
+                      <span
                         key={p.platform}
-                        href={p.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() =>
-                          posthog?.capture("platform_link_clicked", {
-                            creator_id: creator.creator_id,
-                            creator_name: creator.display_name,
-                            platform: p.platform,
-                            url: p.url,
-                          })
-                        }
-                        className="font-mono text-[11px] text-ink-400 hover:text-signal transition-colors"
+                        className="font-mono text-[11px]"
+                        style={{ color: "rgba(245,242,236,0.78)" }}
                       >
                         {PLATFORM_ICONS[p.platform] ?? "🔗"} {p.handle}
-                      </a>
+                      </span>
                     ))}
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Stats bar */}
-              {hasRecord(record) ? (
-                <div className="flex items-center gap-5">
-                  <StatColumn label="Record">
-                    <WLRecord w={record!.wins} l={record!.losses} size="sm" />
-                  </StatColumn>
-                  <StatColumn label="Win %">
-                    <span className={`font-mono tabular text-sm font-bold ${winRateColor}`}>
-                      {winRate}%
-                    </span>
-                  </StatColumn>
-                  <StatColumn label="ROI">
-                    <span
-                      className={`font-mono tabular text-sm font-bold ${
-                        record!.roi >= 0 ? "text-signal" : "text-alert"
-                      }`}
-                    >
-                      {record!.roi >= 0 ? "+" : ""}
-                      {record!.roi}%
-                    </span>
-                  </StatColumn>
+            {/* Body */}
+            <div className="flex-1 px-[22px] pt-4 pb-[18px]">
+              {hasRecord && (
+                <div className="grid grid-cols-3 gap-2">
+                  <StatTile
+                    label="Record"
+                    value={`${(record as CreatorRecord).wins}–${(record as CreatorRecord).losses}`}
+                  />
+                  <StatTile
+                    label="Win %"
+                    value={`${winRatePct}%`}
+                    tone={winRatePct !== null && winRatePct >= 55 ? "positive" : "default"}
+                  />
+                  <StatTile
+                    label="ROI"
+                    value={`${(record as CreatorRecord).roi >= 0 ? "+" : ""}${(record as CreatorRecord).roi}%`}
+                    tone={(record as CreatorRecord).roi >= 0 ? "positive" : "default"}
+                  />
                 </div>
-              ) : (
-                <span className="font-mono text-[10px] uppercase tracking-label text-ink-400">
-                  Tracking started
-                </span>
+              )}
+
+              {recentPicks.length > 0 && (
+                <div className={hasRecord ? "mt-4" : ""}>
+                  {recentPicks.map((pick, i) => {
+                    const isParlay =
+                      pick.pick_type === "parlay" && Array.isArray(pick.pick_detail.legs);
+                    const legs = isParlay ? (pick.pick_detail.legs as unknown as any[]) : [];
+                    return (
+                      <div
+                        key={pick.pick_id}
+                        className={`flex items-start justify-between gap-3 py-2.5 text-[13px] text-ink ${
+                          i > 0 || hasRecord ? "border-t border-rule" : ""
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className="font-mono text-[11px] text-ink-500 w-11 shrink-0 pt-0.5">
+                            {pick.event_date ? formatDate(pick.event_date) : "Today"}
+                          </span>
+                          <span
+                            className="text-[14px] w-5 shrink-0 text-center pt-0.5"
+                            title={pick.league ?? pick.sport}
+                          >
+                            {SPORT_ICONS[pick.sport] ?? "🏆"}
+                          </span>
+                          <div className="min-w-0">
+                            {isParlay ? (
+                              <>
+                                <div className="font-semibold text-ink">
+                                  {legs.length}-Leg Parlay
+                                </div>
+                                <div className="mt-0.5 space-y-0.5 pl-2 border-l border-rule">
+                                  {legs.map((leg: any, j: number) => {
+                                    const text =
+                                      typeof leg === "string"
+                                        ? leg
+                                        : leg.text ?? JSON.stringify(leg);
+                                    const result =
+                                      typeof leg === "object" ? leg.result : undefined;
+                                    return (
+                                      <div
+                                        key={j}
+                                        className="text-ink-500 text-[11px] flex items-center gap-1.5"
+                                      >
+                                        {result && <LegDot result={result} />}
+                                        <span>{text}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="font-semibold text-ink truncate">
+                                  {formatPickDetail(pick.pick_type, pick.pick_detail)}
+                                </div>
+                                {pick.event && (
+                                  <div className="text-ink-500 text-[12px] truncate">
+                                    · {pick.event}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 shrink-0 pt-0.5">
+                          {pick.odds && (
+                            <span className="font-mono text-[11px] text-ink-500">
+                              {pick.odds}
+                            </span>
+                          )}
+                          <StatusPill status={pick.status} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
-            {/* Active Picks Banner */}
-            {pendingPicks.length > 0 && (
-              <div className="mx-6 mb-3 px-3 py-1.5 bg-ink-800/60 border border-ink-800 rounded-lg flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                <span className="font-mono text-[10px] uppercase tracking-label text-ink-400">
-                  {pendingPicks.length} active {pendingPicks.length === 1 ? "pick" : "picks"}
-                </span>
-              </div>
-            )}
-
-            {/* Picks List */}
-            {recentPicks.length > 0 ? (
-              <div className="border-t border-ink-800">
-                {recentPicks.map((pick, i) => (
-                  <div
-                    key={pick.pick_id}
-                    className={`px-6 py-3 flex items-start justify-between gap-4 ${
-                      i < recentPicks.length - 1 ? "border-b border-ink-800/60" : ""
-                    } hover:bg-ink-800/40 transition-colors`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="font-mono text-[11px] text-ink-400 w-12 shrink-0">
-                        {pick.event_date ? formatDate(pick.event_date) : "Today"}
-                      </div>
-                      <div
-                        className="text-base w-6 shrink-0 text-center"
-                        title={pick.league ?? pick.sport}
-                      >
-                        {SPORT_ICONS[pick.sport] ?? "🏆"}
-                      </div>
-                      <div className="min-w-0">
-                        {pick.pick_type === "parlay" && Array.isArray(pick.pick_detail.legs) ? (
-                          <>
-                            <div className="text-white text-sm font-semibold">
-                              {pick.pick_detail.legs.length}-Leg Parlay
-                            </div>
-                            <div className="mt-1 space-y-0.5 pl-3 border-l border-ink-800">
-                              {pick.pick_detail.legs.map((leg: any, j: number) => {
-                                const text = typeof leg === "string" ? leg : leg.text ?? JSON.stringify(leg);
-                                const result = typeof leg === "object" ? leg.result : undefined;
-                                const legEvent = typeof leg === "object" ? leg.event : undefined;
-                                return (
-                                  <div key={j} className="text-ink-400 text-xs flex items-center gap-1.5">
-                                    {result && <LegDot result={result} />}
-                                    <span>{text}</span>
-                                    {legEvent && (
-                                      <span className="text-ink-600">· {legEvent}</span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            {pick.event && (
-                              <div className="text-ink-600 text-xs mt-1">
-                                {pick.league ? `${pick.league} · ` : ""}{pick.event}
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-white text-sm font-semibold truncate">
-                              {formatPickDetail(pick.pick_type, pick.pick_detail)}
-                            </div>
-                            <div className="text-ink-600 text-xs truncate">
-                              {pick.league ? `${pick.league} · ` : ""}{pick.event}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      {pick.odds && (
-                        <span className="font-mono tabular text-ink-400 text-xs">{pick.odds}</span>
-                      )}
-                      <StatusPill status={pick.status} />
-                    </div>
-                  </div>
-                ))}
-
-                {/* View all link */}
-                {activePicks.length > 5 && (
-                  <div className="px-6 py-2.5 border-t border-ink-800/60">
-                    <Link
-                      href={`/creators/${creator.creator_id}`}
-                      onClick={() =>
-                        posthog?.capture("creator_card_clicked", {
-                          creator_id: creator.creator_id,
-                          creator_name: creator.display_name,
-                          source: "active_picks_link",
-                        })
-                      }
-                      className="font-mono text-[11px] uppercase tracking-label text-signal hover:text-signal/80 transition-colors"
-                    >
-                      View all {activePicks.length} active picks →
-                    </Link>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="border-t border-ink-800 px-6 py-6 text-center">
-                <p className="text-ink-400 text-sm">No active picks.</p>
-              </div>
-            )}
-
-            {/* Footer link */}
-            {picks.length > 0 && (
-              <div className="px-6 py-2.5 border-t border-ink-800/60">
-                <Link
-                  href={`/creators/${creator.creator_id}`}
-                  onClick={() =>
-                    posthog?.capture("creator_card_clicked", {
-                      creator_id: creator.creator_id,
-                      creator_name: creator.display_name,
-                      source: "full_history_link",
-                    })
-                  }
-                  className="font-mono text-[11px] uppercase tracking-label text-signal hover:text-signal/80 transition-colors"
-                >
-                  Full history ({picks.length} picks) →
-                </Link>
-              </div>
-            )}
-          </div>
+            {/* Footer */}
+            <div className="bg-paper border-t border-rule-soft px-[22px] py-3 mt-auto">
+              <span className="font-mono text-[11px] font-medium uppercase tracking-label text-ink-700 group-hover:text-ink transition-colors">
+                Full record ({record?.total_picks ?? picks.length} picks) →
+              </span>
+            </div>
+          </Link>
         );
       })}
     </div>
