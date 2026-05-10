@@ -386,6 +386,100 @@ async def get_completed_games_espn(
     ]
 
 
+# Soccer prop name → ESPN stat key in summary.rosters[].roster[].stats[].
+# The public summary endpoint inlines per-player match stats, so we can
+# resolve player props without dropping into the core API. Keys verified
+# against ESPN's response for UEFA Europa League matches (2026 season).
+_SOCCER_PROP_TO_STAT_KEY: dict[str, str] = {
+    "shots on target":   "shotsOnTarget",
+    "sot":               "shotsOnTarget",
+    "shots":             "totalShots",
+    "total shots":       "totalShots",
+    "goals":             "totalGoals",
+    "total goals":       "totalGoals",
+    "assists":           "goalAssists",
+    "passes":            "totalPasses",
+    "total passes":      "totalPasses",
+    "accurate passes":   "accuratePasses",
+    "saves":             "saves",
+    "tackles":           "totalTackles",
+    "interceptions":     "interceptions",
+    "fouls":             "foulsCommitted",
+    "fouls committed":   "foulsCommitted",
+    "offsides":          "offsides",
+    "yellow cards":      "yellowCards",
+    "red cards":         "redCards",
+    "crosses":           "totalCrosses",
+}
+
+
+# Any soccer league key works for summary lookups — ESPN uses the event_id
+# directly and ignores the league path in the URL. Picking one cuts the
+# branching out of the player-stat fetch.
+_SOCCER_SUMMARY_LEAGUE = "eng.1"
+
+
+async def find_soccer_player_stat_in_event(
+    event_id: str,
+    player_name: str,
+    prop_name: str,
+) -> Optional[PlayerGameStats]:
+    """
+    Look up a soccer player's per-match stat from ESPN's public summary
+    endpoint. Walks `summary.rosters[].roster[].stats[]` matching the
+    player by normalized display name and the stat by the prop→key map.
+
+    Returns None if the prop isn't supported, the match isn't found, or
+    the player isn't on either roster (didn't appear).
+    """
+    stat_key = _SOCCER_PROP_TO_STAT_KEY.get((prop_name or "").lower().strip())
+    if not stat_key:
+        log.info("Unsupported soccer prop", prop=prop_name)
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"{BASE_URL}/soccer/{_SOCCER_SUMMARY_LEAGUE}/summary",
+                params={"event": event_id},
+            )
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+    except Exception as e:
+        log.error("ESPN soccer summary fetch failed", event_id=event_id, error=str(e))
+        return None
+
+    rosters = data.get("rosters") or []
+    if not rosters:
+        return None
+
+    normalized_player = _normalize_name(player_name)
+    for team_block in rosters:
+        for entry in (team_block.get("roster") or []):
+            ath = entry.get("athlete") or {}
+            name = ath.get("displayName") or ath.get("fullName") or ""
+            if _normalize_name(name) != normalized_player:
+                continue
+            for s in entry.get("stats") or []:
+                if s.get("name") != stat_key:
+                    continue
+                raw_val = s.get("value")
+                if raw_val is None:
+                    continue
+                try:
+                    value = float(raw_val)
+                except (TypeError, ValueError):
+                    continue
+                return PlayerGameStats(
+                    player_name=name,
+                    stat_name=stat_key,
+                    stat_value=value,
+                    event_id=event_id,
+                )
+    return None
+
+
 async def get_first_inning_runs(event_id: str) -> Optional[int]:
     """
     Total first-inning runs across both teams for an MLB game.
@@ -615,7 +709,18 @@ def _parse_scoreboard_event(
         return None
 
     status = (comp.get("status") or {}).get("type") or {}
-    completed = status.get("name") == "STATUS_FINAL"
+    # ESPN exposes a boolean `completed` on status.type that's true for
+    # any terminal state — STATUS_FINAL (NBA/NFL/MLB/NHL), STATUS_FULL_TIME
+    # (soccer regular time), STATUS_AET / STATUS_PEN (soccer extra-time /
+    # penalties), tennis match-end statuses, etc. Trust that flag instead
+    # of string-matching STATUS_FINAL only.
+    completed = bool(status.get("completed", False))
+    # Fallback for any odd cases where the flag is missing but the name
+    # clearly indicates finality.
+    if not completed and status.get("name") in {
+        "STATUS_FINAL", "STATUS_FULL_TIME", "STATUS_AET", "STATUS_PEN",
+    }:
+        completed = True
 
     return ScheduledGame(
         game_id=event.get("id", ""),
