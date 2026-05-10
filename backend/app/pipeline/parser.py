@@ -84,6 +84,12 @@ Rules:
     - "HR" / "HRs" → "Home Runs"
     - "Hits + Runs + RBIs" / "H+R+RBI" → "Hits + Runs + RBIs"  (keep MLB combo names spelled out)
   Output the canonical long form as the prop value. No parens, no aliases like "(Potential Assists)" — those are guesses and they're wrong.
+- BINARY "NO [stat]" / "YES [stat]" PROPS — when the creator phrases a counting prop as a yes/no rather than a numeric line:
+    - "No HR" / "No Home Run" / "Won't homer" / "HR Lay" / "No HR Lay" / "Anytime No HR" → line="0.5", direction="Under", text like "Under 0.5 Home Runs"
+    - "No Goal" / "Lay Goal" → line="0.5", direction="Under", "Under 0.5 Goals"
+    - "No TD" / "Lay TD" / "No Touchdown" → line="0.5", direction="Under", "Under 0.5 Touchdowns"
+    - "Anytime TD" / "To Score" / "To Hit" / "Yes [stat]" → line="0.5", direction="Over", "Over 0.5 [Stat]"
+    The line MUST be "0.5" for these, NEVER "0" — "Under 0 Home Runs" can never win (0 is the floor), so it's a logical error. Same idea applies to "Over 0" — meaningless. When phrasing implies "any of this stat at all" or "none of this stat at all", the line is always 0.5.
 - Return {"picks": [], "no_picks_reason": "..."} if no picks found
 - Return valid JSON only, no explanation
 
