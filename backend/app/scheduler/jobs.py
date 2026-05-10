@@ -491,10 +491,29 @@ async def resolve_pending_outcomes():
                     if pick.pick_id in fallback_pick_ids:
                         log.info("Skipping fallback parlay — game uncertain", pick_id=pick.pick_id)
                         continue
-                    updated_detail, new_status = await resolve_parlay_legs(
-                        pick.pick_detail or {},
-                        _effective_event_date(pick),
+                    # If the legs themselves are pinned (event_id + provider),
+                    # route through resolve_parlay_legs_pinned even though the
+                    # parent parlay has no pinned event_id. This is the common
+                    # shape for cross-game parlays (NRFI parlays across 3
+                    # different MLB games, etc.) — there's no single parent
+                    # event_id to pin, but each leg knows its own game.
+                    legs_for_routing = (pick.pick_detail or {}).get("legs") or []
+                    legs_are_pinned = bool(legs_for_routing) and all(
+                        isinstance(l, dict)
+                        and l.get("event_id")
+                        and l.get("event_provider") == "espn"
+                        for l in legs_for_routing
                     )
+                    if legs_are_pinned:
+                        updated_detail, new_status = await resolve_parlay_legs_pinned(
+                            pick.pick_detail or {},
+                            anchor_date=_effective_event_date(pick),
+                        )
+                    else:
+                        updated_detail, new_status = await resolve_parlay_legs(
+                            pick.pick_detail or {},
+                            _effective_event_date(pick),
+                        )
                     # Always update pick_detail to persist per-leg results
                     from sqlalchemy.orm.attributes import flag_modified
                     pick.pick_detail = updated_detail
