@@ -174,9 +174,8 @@ async def ingest_tweet_for_creator(
         await _enrich_with_opponents(parsed_picks, posted_at=post.posted_at)
         # Fill market odds at submit time so picks display a price immediately
         # instead of waiting for the closing-odds cron (which only fires within
-        # 90 min of game start). Self-throttles via the Odds API budget guard,
-        # so a busy month can't blow the 450-call free-tier cap. LLM-extracted
-        # odds from the post text are preserved verbatim.
+        # 90 min of game start). Self-throttles via the Odds API budget guard.
+        # LLM-extracted odds from the post text are preserved verbatim.
         await _enrich_with_odds(parsed_picks)
         # Last-resort pinning gate: if the team-name lookup left any pick
         # unpinned, ask Claude to bind it to a specific event_id chosen from
@@ -371,9 +370,9 @@ async def _enrich_with_odds(picks: list[ParsedPick]) -> None:
     in the post text. Calls The Odds API once per sport that needs lookup.
 
     Self-throttles via odds_api.check_budget() — when the monthly budget is
-    near zero the lookup quietly returns nothing and the pick stays unpriced
-    rather than blowing the 450/month free-tier cap. Skips parlay (parlay-
-    level odds usually come from the post itself) and prop (no /odds market).
+    near zero the lookup quietly returns nothing and the pick stays unpriced.
+    Skips parlay (parlay-level odds usually come from the post itself) and
+    prop (no /odds market).
     """
     sports_needed = {
         p.sport for p in picks

@@ -1,8 +1,9 @@
 """
 Odds API request budget tracker.
 
-Free tier: 500 requests/month. We reserve 50 as buffer, so the effective
-budget is 450. Resets on the 1st of each month.
+Paid tier (20,000 requests/month) since 2026-05-10. We reserve 500 as
+buffer, so the effective budget is 19,500. Resets on the 1st of each
+month.
 
 Stores the counter in the database via a simple key-value row in a
 lightweight table, falling back to in-memory tracking if the table
@@ -13,7 +14,7 @@ from datetime import datetime, timezone
 
 log = structlog.get_logger()
 
-MONTHLY_BUDGET = 450  # 500 free - 50 buffer
+MONTHLY_BUDGET = 19500  # 20,000 paid plan - 500 buffer
 
 # In-memory fallback (resets on process restart, but good enough for MVP)
 _counter = {"month": None, "count": 0}
@@ -51,7 +52,7 @@ def record_request(count: int = 1):
         budget_remaining=usage["budget_remaining"],
     )
 
-    if usage["budget_remaining"] < 50:
+    if usage["budget_remaining"] < 1000:
         log.warning("Odds API budget running low", **usage)
 
 

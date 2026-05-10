@@ -2,7 +2,7 @@
 The Odds API client — fetches completed game scores for outcome resolution.
 Docs: https://the-odds-api.com/liveapi/guides/v4/
 
-Free tier: 500 requests/month. Budget is tracked via odds_api_budget.py.
+Paid plan: 20,000 requests/month. Budget is tracked via odds_api_budget.py.
 Results are cached for 30 minutes to avoid redundant calls.
 """
 import httpx
@@ -61,7 +61,7 @@ class GameResult:
 async def get_completed_games(sport: str, days_back: int = 3) -> list[GameResult]:
     """
     Fetch recently completed games for a sport.
-    Uses cache to avoid burning through the free tier budget.
+    Uses cache to avoid burning through the monthly budget.
     """
     sport_key = SPORT_KEY_MAP.get(sport.upper())
     if not sport_key:

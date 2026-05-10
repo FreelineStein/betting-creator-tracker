@@ -15,9 +15,9 @@ scheduler = AsyncIOScheduler()
 
 def setup_scheduler():
     """Register all background jobs."""
-    # Outcome resolution doesn't need to be near-real-time — every 2h keeps
-    # us well inside the 450/month Odds API free tier and leaves headroom for
-    # the closing-odds capture job below.
+    # Outcome resolution doesn't need to be near-real-time — every 2h is
+    # plenty for our scale and leaves headroom for the closing-odds capture
+    # job below.
     from datetime import datetime, timedelta, timezone
 
     resolve_hours = getattr(settings, "resolve_interval_hours", 2)
