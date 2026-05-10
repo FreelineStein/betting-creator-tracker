@@ -1,12 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
 
 type LogoProps = {
   /** Pixel height of the icon mark (and reference size for wordmark scaling). */
   height?: number;
-  /** Render the receipt icon mark. */
+  /** Render the PR icon mark. */
   icon?: boolean;
-  /** Render the PICKRECEIPTS wordmark. */
+  /** Render the PickReceipts wordmark. */
   wordmark?: boolean;
   /** Wrap in a Link to /. */
   linked?: boolean;
@@ -14,34 +13,50 @@ type LogoProps = {
 };
 
 export function Logo({
-  height = 56,
+  height = 40,
   icon = true,
   wordmark = true,
   linked = true,
   className = "",
 }: LogoProps) {
+  const iconSize = height;
+  const wordSize = Math.round(height * 0.6);
+  const markFontSize = Math.round(iconSize * 0.5);
+
   const mark = (
-    <span className={`inline-flex items-center gap-3 ${className}`}>
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
       {icon && (
-        <Image
-          src="/brand-mark.png"
-          alt="PickReceipts"
-          width={height}
-          height={height}
-          priority
-          className="block"
-        />
+        <span
+          aria-hidden="true"
+          className="relative inline-flex items-center justify-center overflow-hidden rounded-[10px] bg-ink text-amber"
+          style={{ width: iconSize, height: iconSize }}
+        >
+          <span
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(circle at 25% 30%, rgba(255,179,71,0.32), transparent 55%)",
+            }}
+          />
+          <span
+            className="relative font-display font-extrabold leading-none"
+            style={{ fontSize: markFontSize, letterSpacing: "-0.04em" }}
+          >
+            PR
+          </span>
+        </span>
       )}
       {wordmark && (
         <span
-          className="font-display font-black tracking-display leading-none text-white select-none"
-          style={{ fontSize: Math.round(height * 0.62) }}
+          className="font-display font-extrabold tracking-display leading-none text-ink select-none"
+          style={{ fontSize: wordSize }}
         >
-          PICK<span className="text-signal">RECEIPTS</span>
+          Pick<span className="text-amber-deep">Receipts</span>
         </span>
       )}
     </span>
   );
+
   if (!linked) return mark;
   return (
     <Link href="/" aria-label="PickReceipts home" className="inline-flex items-center">

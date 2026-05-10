@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed, IBM_Plex_Mono } from "next/font/google";
+import { Manrope, IBM_Plex_Mono } from "next/font/google";
 import Link from "next/link";
 import { Analytics } from "@vercel/analytics/react";
 import { Logo } from "../components/Logo";
@@ -7,23 +7,16 @@ import { PostHogProvider } from "./components/PostHogProvider";
 import { PostHogPageview } from "./components/PostHogPageview";
 import "./globals.css";
 
-const barlow = Barlow({
+const manrope = Manrope({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-barlow",
-  display: "swap",
-});
-
-const barlowCondensed = Barlow_Condensed({
-  subsets: ["latin"],
-  weight: ["700", "900"],
-  variable: "--font-barlow-condensed",
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-manrope",
   display: "swap",
 });
 
 const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["400", "500", "600"],
   variable: "--font-plex-mono",
   display: "swap",
 });
@@ -46,28 +39,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${barlow.variable} ${barlowCondensed.variable} ${plexMono.variable}`}
+      className={`${manrope.variable} ${plexMono.variable}`}
     >
-      <body className="bg-pitch text-white min-h-screen font-sans">
+      <body className="bg-paper text-ink min-h-screen font-sans">
         <PostHogProvider>
           <PostHogPageview />
-          <nav className="border-b border-ink-800 bg-pitch">
+          <nav className="border-b border-rule bg-paper">
             <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-              <Logo height={48} icon={false} />
+              <Logo height={40} />
               <div className="flex items-center gap-5">
                 <Link
                   href="/submit"
-                  className="font-mono text-[10px] uppercase tracking-label text-ink-400 hover:text-signal transition-colors"
+                  className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 hover:text-ink transition-colors"
                 >
                   Submit a pick
                 </Link>
-                <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 hidden sm:inline">
-                  Real records · No excuses
-                </span>
               </div>
             </div>
           </nav>
-          <main className="max-w-5xl mx-auto px-6 py-8">{children}</main>
+          <main className="max-w-5xl mx-auto px-6 py-10">{children}</main>
         </PostHogProvider>
         <Analytics />
       </body>

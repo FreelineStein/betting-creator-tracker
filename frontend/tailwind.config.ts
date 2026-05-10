@@ -8,36 +8,61 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Brand palette — see brand guide v1.0
-        signal: {
-          DEFAULT: "#7AE53C", // primary accent · win · verified · CTAs
-          dim: "rgba(122, 229, 60, 0.12)",
+        // PickReceipts — Stadium Card palette (light-first).
+        // Warm paper surfaces, ink ramp, amber signal, cobalt institutional.
+        // No red/green; W/L is conveyed by filled-vs-hollow + amber-vs-stone.
+        paper: {
+          DEFAULT: "#F5F2EC",
+          2: "#FBFAF6",
+          3: "#ECE7DC",
         },
-        forest: "#3D8A12",   // green text on light backgrounds
-        pitch: "#0A0A0A",    // primary BG · logo BG
-        alert: {
-          DEFAULT: "#E85D30", // loss · error · rejected
-          dim: "rgba(232, 93, 48, 0.10)",
-          deep: "#B84420",   // orange text on light/dim backgrounds
-        },
-        paper: "#F7F7F5",    // light page background
         ink: {
-          100: "#F2F2F2",
-          200: "#E0E0E0",
-          400: "#A0A0A0",
-          600: "#555555",
-          800: "#222222",
+          DEFAULT: "#14130F",
+          700: "#2B2823",
+          500: "#6B645A",
+          300: "#A8A096",
         },
+        rule: {
+          DEFAULT: "#D9D3C5",
+          soft: "rgba(20, 19, 15, 0.08)",
+        },
+        amber: {
+          DEFAULT: "#FFB347",
+          deep: "#C77A1F",
+          dim: "rgba(255, 179, 71, 0.16)",
+          glow: "rgba(255, 179, 71, 0.42)",
+        },
+        cobalt: {
+          DEFAULT: "#1F3A8A",
+          deep: "#15275C",
+          dim: "rgba(31, 58, 138, 0.10)",
+        },
+        stone: {
+          DEFAULT: "#7A6B4F",
+          dim: "rgba(122, 107, 79, 0.14)",
+        },
+        // Warm white for text on dark banner gradients.
+        moon: "#F5F2EC",
       },
       fontFamily: {
-        sans: ["var(--font-barlow)", "system-ui", "sans-serif"],
-        display: ["var(--font-barlow-condensed)", "system-ui", "sans-serif"],
+        sans: ["var(--font-manrope)", "system-ui", "sans-serif"],
+        display: ["var(--font-manrope)", "system-ui", "sans-serif"],
         mono: ["var(--font-plex-mono)", "ui-monospace", "monospace"],
       },
       letterSpacing: {
-        // Brand calls for tight tracking on display + wide tracking on mono labels
-        display: "-0.02em",
-        label: "0.1em",
+        display: "-0.025em",
+        tight: "-0.015em",
+        label: "0.10em",
+        "label-x": "0.14em",
+      },
+      borderRadius: {
+        card: "18px",
+      },
+      boxShadow: {
+        card: "0 1px 0 rgba(20,19,15,0.04), 0 1px 2px rgba(20,19,15,0.06)",
+        lift: "0 6px 24px rgba(20,19,15,0.08)",
+        focus: "0 0 0 3px rgba(255,179,71,0.42)",
+        avatar: "0 2px 8px rgba(0,0,0,0.25)",
       },
     },
   },

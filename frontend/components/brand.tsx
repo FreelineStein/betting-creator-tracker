@@ -1,23 +1,30 @@
 /**
- * Brand primitives — see brand guide v1.0 (PickReceipts).
+ * Brand primitives — PickReceipts Stadium Card direction.
  *
- * Every component here maps to a section of the guide. Keep it that way:
- * if the guide changes, this is the single file to update.
+ * No red/green anywhere — wins are amber, losses are stone/ink, pushes/pending
+ * are neutral. Status pills are lowercase intentionally; the color carries weight.
  */
 import type { ReactNode } from "react";
 
 // -------------------------------------------------------------------------
-// Badge — section 05, Status Badges
+// Badge — status pills
 // -------------------------------------------------------------------------
 
-export type BadgeVariant = "win" | "loss" | "push" | "streak-win" | "streak-loss";
+export type BadgeVariant =
+  | "win"
+  | "loss"
+  | "push"
+  | "pending"
+  | "streak-win"
+  | "streak-loss";
 
 const BADGE_STYLES: Record<BadgeVariant, string> = {
-  win: "bg-signal-dim text-forest",
-  loss: "bg-alert-dim text-alert-deep",
-  push: "bg-ink-100/10 text-ink-400",
-  "streak-win": "bg-signal/20 text-signal border border-signal/40",
-  "streak-loss": "bg-alert/15 text-alert border border-alert/30",
+  win: "bg-amber-dim text-amber-deep border border-amber-deep/30",
+  loss: "bg-stone-dim text-ink-500 border border-transparent",
+  push: "bg-paper-2 text-ink-500 border border-rule",
+  pending: "bg-transparent text-ink-500 border border-dashed border-rule",
+  "streak-win": "bg-amber-dim text-amber-deep border border-amber/40",
+  "streak-loss": "bg-stone-dim text-ink-700 border border-stone/30",
 };
 
 export function Badge({
@@ -31,7 +38,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-label ${BADGE_STYLES[variant]} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold tracking-label ${BADGE_STYLES[variant]} ${className}`}
     >
       {children}
     </span>
@@ -39,8 +46,7 @@ export function Badge({
 }
 
 // -------------------------------------------------------------------------
-// WLRecord — section 05, "<W>–<L>" formatted with mono, signal W, alert L
-// (Named WLRecord to avoid shadowing TypeScript's built-in Record<K, V>.)
+// WLRecord — "<W>–<L>" in display weight, both sides ink (no green/red).
 // -------------------------------------------------------------------------
 
 export function WLRecord({
@@ -54,26 +60,30 @@ export function WLRecord({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  const sizeClass = { sm: "text-sm", md: "text-base", lg: "text-2xl" }[size];
+  const sizeClass = { sm: "text-sm", md: "text-base", lg: "text-3xl" }[size];
   return (
-    <span className={`font-mono tabular font-bold ${sizeClass} ${className}`}>
-      <span className="text-signal">{w}</span>
-      <span className="text-ink-400 mx-0.5">–</span>
-      <span className="text-alert">{l}</span>
+    <span
+      className={`font-display font-extrabold tabular tracking-tight ${sizeClass} ${className}`}
+    >
+      <span className="text-ink">{w}</span>
+      <span className="text-ink-500 mx-0.5">–</span>
+      <span className="text-ink">{l}</span>
     </span>
   );
 }
 
 // -------------------------------------------------------------------------
-// StatCard — section 05, Dashboard Stat Cards (dark surface variant)
+// StatCard — big paper-2 tile, ink number, amber-deep when positive.
+// `win`/`positive` both map to amber-deep; `loss`/`default` stay ink.
 // -------------------------------------------------------------------------
 
-export type StatTone = "default" | "win" | "loss";
+export type StatTone = "default" | "positive" | "win" | "loss";
 
 const STAT_TONE: Record<StatTone, string> = {
-  default: "text-white",
-  win: "text-signal",
-  loss: "text-alert",
+  default: "text-ink",
+  positive: "text-amber-deep",
+  win: "text-amber-deep",
+  loss: "text-ink",
 };
 
 export function StatCard({
@@ -91,41 +101,73 @@ export function StatCard({
 }) {
   return (
     <div
-      className={`rounded-xl border border-ink-800 bg-ink-800/30 p-6 ${className}`}
+      className={`rounded-[14px] border border-rule bg-paper-2 p-5 shadow-card ${className}`}
     >
-      <div className="font-mono text-[10px] uppercase tracking-label text-ink-400">
+      <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500">
         {label}
       </div>
       <div
-        className={`mt-2 font-display text-4xl font-black tabular tracking-display ${STAT_TONE[tone]}`}
+        className={`mt-2 font-display text-4xl font-extrabold tabular tracking-tight leading-none ${STAT_TONE[tone]}`}
       >
         {value}
       </div>
-      {sub && <div className="mt-1 text-xs text-ink-400">{sub}</div>}
+      {sub && <div className="mt-1.5 text-xs text-ink-500">{sub}</div>}
     </div>
   );
 }
 
 // -------------------------------------------------------------------------
-// Button — section 05, Buttons
+// StatTile — compact card-internal stat (used inside the creator card body)
+// -------------------------------------------------------------------------
+
+export function StatTile({
+  label,
+  value,
+  tone = "default",
+  className = "",
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: StatTone;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-[10px] border border-rule bg-paper-3 px-3 py-2.5 text-center ${className}`}
+    >
+      <div className="font-mono text-[9px] uppercase tracking-label-x font-medium text-ink-500">
+        {label}
+      </div>
+      <div
+        className={`mt-1 font-display text-[22px] font-extrabold tabular tracking-tight leading-none ${STAT_TONE[tone]}`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------------
+// Button — primary (ink fill), accent (amber fill), secondary (paper outlined),
+// outline (ink outlined), danger (amber-deep outlined), ghost (transparent).
 // -------------------------------------------------------------------------
 
 export type ButtonVariant =
   | "primary"
+  | "accent"
   | "secondary"
   | "outline"
   | "danger"
   | "ghost";
 
 const BUTTON_STYLES: Record<ButtonVariant, string> = {
-  primary: "bg-signal text-pitch hover:bg-signal/90",
-  secondary:
-    "bg-transparent text-white border border-ink-400 hover:border-white",
-  outline:
-    "bg-transparent text-signal border border-signal hover:bg-signal/10",
+  primary: "bg-ink text-paper border border-ink hover:bg-ink-700",
+  accent: "bg-amber text-ink border border-amber hover:bg-amber-deep hover:text-paper",
+  secondary: "bg-paper-2 text-ink border border-rule hover:border-ink-500",
+  outline: "bg-transparent text-ink border border-ink hover:bg-paper-3",
   danger:
-    "bg-transparent text-alert border border-alert hover:bg-alert/10",
-  ghost: "bg-ink-800/60 text-white hover:bg-ink-800",
+    "bg-transparent text-amber-deep border border-amber-deep/60 hover:bg-amber-dim",
+  ghost: "bg-transparent text-ink-700 border border-transparent hover:bg-paper-3",
 };
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -140,7 +182,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-bold uppercase tracking-label transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${BUTTON_STYLES[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-[10px] px-[18px] py-[11px] font-sans text-sm font-semibold tracking-tight transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${BUTTON_STYLES[variant]} ${className}`}
       {...rest}
     >
       {children}
