@@ -234,6 +234,64 @@ def _resolve_over_under(pick_detail: dict, game: GameResult) -> PickStatus:
         return PickStatus.pending
 
 
+_FIRST_INNING_KEYWORDS = (
+    "nrfi", "yrfi", "no run first inning", "yes run first inning",
+    "no runs first inning", "yes runs first inning",
+)
+
+
+def _is_first_inning_runs_prop(prop_name: str) -> bool:
+    """True if `prop_name` describes the combined first-inning runs market."""
+    if not prop_name:
+        return False
+    needle = prop_name.lower()
+    return any(k in needle for k in _FIRST_INNING_KEYWORDS)
+
+
+async def _resolve_first_inning_runs(
+    pick_detail: dict, event_id: str,
+) -> PickStatus:
+    """
+    Resolve an NRFI / YRFI prop against ESPN's MLB linescore for the
+    pinned game.
+
+    The detail looks like `{prop: "No Run First Inning", direction: "Yes"}`
+    (or "Yes Run First Inning" / direction "No"). We collapse the
+    (prop, direction) pair to a single "user expects 0 runs?" flag, then
+    compare against the sum of both teams' first-inning runs.
+    """
+    from app.services.espn_stats import get_first_inning_runs
+
+    prop_name = (pick_detail.get("prop") or "").lower()
+    direction = (pick_detail.get("direction") or "").lower()
+
+    is_nrfi = "no run" in prop_name or "nrfi" in prop_name
+    is_yrfi = "yes run" in prop_name or "yrfi" in prop_name
+    if not (is_nrfi or is_yrfi):
+        return PickStatus.pending
+
+    # Direction "Yes" means the user took the market name as written:
+    # NRFI Yes → expects no runs; YRFI Yes → expects runs.
+    direction_yes = direction in ("yes", "y", "true", "over")
+    user_expects_no_runs = is_nrfi == direction_yes
+
+    runs = await get_first_inning_runs(event_id)
+    if runs is None:
+        log.info("first_inning_runs not available", event_id=event_id)
+        return PickStatus.pending
+
+    log.info(
+        "first_inning_runs resolved",
+        event_id=event_id, runs=runs,
+        prop=pick_detail.get("prop"), direction=pick_detail.get("direction"),
+        user_expects_no_runs=user_expects_no_runs,
+    )
+
+    if runs == 0:
+        return PickStatus.won if user_expects_no_runs else PickStatus.lost
+    return PickStatus.lost if user_expects_no_runs else PickStatus.won
+
+
 async def resolve_prop_pinned(
     pick_detail: dict,
     sport: str,
@@ -245,6 +303,11 @@ async def resolve_prop_pinned(
     Mirrors resolve_prop's contract but skips the date-window search since
     the pinned event_id tells us exactly which game to read.
     """
+    # Game-level special-period markets (NRFI / YRFI) don't have a player
+    # and aren't in find_player_stat — they read the linescore directly.
+    if _is_first_inning_runs_prop(pick_detail.get("prop", "")):
+        return await _resolve_first_inning_runs(pick_detail, event_id)
+
     from app.services.espn_stats import find_player_stat_in_event
 
     player = pick_detail.get("player", "")

@@ -386,6 +386,56 @@ async def get_completed_games_espn(
     ]
 
 
+async def get_first_inning_runs(event_id: str) -> Optional[int]:
+    """
+    Total first-inning runs across both teams for an MLB game.
+
+    Reads `header.competitions[0].competitors[].linescores[0].displayValue`
+    from ESPN's summary endpoint — a string like "0" or "2" giving runs
+    scored in that inning by that team. Sums home + away to get the
+    combined first-inning total used by NRFI/YRFI resolution.
+
+    Returns None if the game isn't found, isn't final, or doesn't carry
+    a parsable linescore. Callers should treat None as "leave pending".
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"{BASE_URL}/baseball/mlb/summary",
+                params={"event": event_id},
+            )
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+    except Exception as e:
+        log.error("ESPN first-inning fetch failed", event_id=event_id, error=str(e))
+        return None
+
+    header = data.get("header") or {}
+    competitions = header.get("competitions") or []
+    if not competitions:
+        return None
+    competitors = competitions[0].get("competitors") or []
+
+    total = 0
+    seen_any_inning = False
+    for c in competitors:
+        linescores = c.get("linescores") or []
+        if not linescores:
+            continue
+        first = linescores[0] if isinstance(linescores[0], dict) else None
+        if not first:
+            continue
+        raw = first.get("displayValue")
+        try:
+            runs = int(raw)
+        except (TypeError, ValueError):
+            continue
+        total += runs
+        seen_any_inning = True
+    return total if seen_any_inning else None
+
+
 def _parse_competitor_score(competitor: dict) -> Optional[int]:
     """Pull final score from an ESPN competitor entry. Returns None if absent or unparseable."""
     raw = competitor.get("score")
