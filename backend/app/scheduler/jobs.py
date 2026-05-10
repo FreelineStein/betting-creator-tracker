@@ -273,6 +273,7 @@ async def resolve_pending_outcomes():
                 elif pick.pick_type == "prop":
                     new_status = await resolve_prop_pinned(
                         pick.pick_detail or {}, pick.sport, pick.event_id,
+                        event_date=pick.event_date,
                     )
                 else:
                     sched = await find_completed_game_by_event_id(

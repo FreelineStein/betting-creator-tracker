@@ -296,19 +296,25 @@ async def resolve_prop_pinned(
     pick_detail: dict,
     sport: str,
     event_id: str,
+    event_date: Optional[datetime] = None,
 ) -> PickStatus:
     """
     Resolve a player prop against the box score of a specific ESPN event_id.
 
-    Mirrors resolve_prop's contract but skips the date-window search since
-    the pinned event_id tells us exactly which game to read.
+    Mirrors resolve_prop's contract but starts from the pinned event_id
+    instead of searching by date. If the player isn't in the pinned game's
+    box score — i.e. the LLM pinned to the wrong game (closest-game
+    fallback chose Mets@Nationals instead of the player's actual team's
+    game) — and `event_date` is available, falls back to find_player_stat
+    for a wider ±1 day search across that day's slate. That catches
+    misclassified pins without needing a player→team mapping.
     """
     # Game-level special-period markets (NRFI / YRFI) don't have a player
     # and aren't in find_player_stat — they read the linescore directly.
     if _is_first_inning_runs_prop(pick_detail.get("prop", "")):
         return await _resolve_first_inning_runs(pick_detail, event_id)
 
-    from app.services.espn_stats import find_player_stat_in_event
+    from app.services.espn_stats import find_player_stat_in_event, find_player_stat
 
     player = pick_detail.get("player", "")
     prop = pick_detail.get("prop", "")
@@ -331,6 +337,16 @@ async def resolve_prop_pinned(
         return PickStatus.pending
 
     result = await find_player_stat_in_event(sport, event_id, player, prop)
+    if result is None and event_date is not None:
+        # Pinned-game miss — try the wider day-window search in case the
+        # LLM pinned to the wrong game (player isn't on either team there).
+        result = await find_player_stat(player, prop, sport, event_date)
+        if result is not None:
+            log.info(
+                "Pinned prop rescued via day-window search",
+                player=player, prop=prop, sport=sport,
+                pinned_event_id=event_id,
+            )
     if result is None:
         log.info(
             "Pinned prop stat not found",
@@ -396,7 +412,9 @@ async def resolve_parlay_legs_pinned(
             continue
 
         if leg_type == "prop":
-            result = await resolve_prop_pinned(leg_detail, leg_sport, leg_event_id)
+            result = await resolve_prop_pinned(
+                leg_detail, leg_sport, leg_event_id, event_date=anchor_date,
+            )
         else:
             game_sched = await find_completed_game_by_event_id(
                 leg_sport, leg_event_id, anchor_date=anchor_date,
