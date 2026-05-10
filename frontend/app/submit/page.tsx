@@ -16,23 +16,22 @@ export default function SubmitPage() {
 
   return (
     <div className="max-w-xl">
-      <div className="mb-8">
-        <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-3">
+      <div className="mb-10">
+        <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mb-3">
           Submit a pick
         </div>
-        <h1 className="font-display font-black text-4xl sm:text-5xl tracking-display leading-none text-white">
-          Saw a pick on X?{" "}
-          <span className="text-signal">Drop the link.</span>
+        <h1 className="font-display font-extrabold text-4xl sm:text-5xl tracking-display leading-[1.05] text-ink">
+          Paste an <span className="text-amber-deep">X post</span> URL.
         </h1>
-        <p className="text-ink-400 mt-4">
-          Paste a public X (Twitter) post URL where a creator posted a betting pick.
-          We&apos;ll fetch the post, extract the pick, and log it on the creator&apos;s record.
+        <p className="text-ink-500 mt-4 text-[15px] leading-relaxed">
+          We&apos;ll fetch the post, extract any picks, match them to scheduled games,
+          and add them to the creator&apos;s record.
         </p>
       </div>
 
       <SubmitForm turnstileSiteKey={siteKey} />
 
-      <div className="mt-10 border-t border-ink-800 pt-6 text-xs text-ink-600 leading-relaxed">
+      <div className="mt-10 border-t border-rule pt-6 text-xs text-ink-500 leading-relaxed">
         Submissions are anonymous and rate-limited. We never log who you are. Picks
         from creators we don&apos;t already track go through a quick review before they
         appear on the public list.

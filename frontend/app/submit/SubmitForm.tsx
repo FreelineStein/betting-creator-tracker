@@ -65,9 +65,6 @@ export default function SubmitForm({
     return () => clearTimeout(t);
   }, [turnstileReady]);
 
-  // Render the Turnstile widget once the script has loaded *and* the
-  // container is mounted. We use refs for the token so a token change
-  // doesn't force a re-render.
   useEffect(() => {
     if (!turnstileReady) return;
     if (!turnstileContainerRef.current) return;
@@ -78,7 +75,7 @@ export default function SubmitForm({
       turnstileContainerRef.current,
       {
         sitekey: turnstileSiteKey,
-        theme: "dark",
+        theme: "light",
         callback: (token) => {
           turnstileTokenRef.current = token;
         },
@@ -151,7 +148,6 @@ export default function SubmitForm({
       posthog?.capture("submission_failed", {
         error_type: err instanceof SubmissionError ? "api_error" : "network_error",
       });
-      // Reset Turnstile so the user can retry — tokens are single-use.
       if (window.turnstile && turnstileWidgetIdRef.current) {
         window.turnstile.reset(turnstileWidgetIdRef.current);
       }
@@ -170,7 +166,6 @@ export default function SubmitForm({
             resetForm();
           }}
         />
-        {/* Keep the Turnstile script cached for the next submission */}
         <Script
           src={TURNSTILE_SCRIPT_SRC}
           strategy="afterInteractive"
@@ -191,8 +186,7 @@ export default function SubmitForm({
         onLoad={() => setTurnstileReady(true)}
       />
       <form onSubmit={handleSubmit} noValidate>
-        {/* Honeypot — hidden from real users, irresistible to dumb bots.
-            Inline styles so the field stays hidden even if Tailwind fails to load. */}
+        {/* Honeypot — hidden from real users, irresistible to dumb bots. */}
         <div
           aria-hidden="true"
           style={{
@@ -218,7 +212,7 @@ export default function SubmitForm({
         </div>
 
         <label htmlFor="tweet-url" className="block">
-          <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-2">
+          <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mb-2">
             Post URL
           </div>
           <input
@@ -235,12 +229,12 @@ export default function SubmitForm({
             disabled={submitting}
             aria-invalid={Boolean(urlError)}
             aria-describedby={urlError ? "tweet-url-error" : undefined}
-            className={`w-full rounded-md border bg-pitch px-3 py-3 text-white placeholder:text-ink-600 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-signal/40 disabled:opacity-50 ${
-              urlError ? "border-alert" : "border-ink-800 hover:border-ink-400"
+            className={`w-full rounded-[10px] border bg-paper-2 px-3.5 py-3 text-ink placeholder:text-ink-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-amber-glow disabled:opacity-50 transition-colors ${
+              urlError ? "border-amber-deep" : "border-rule hover:border-ink-500"
             }`}
           />
           {urlError && (
-            <p id="tweet-url-error" className="mt-2 text-xs text-alert">
+            <p id="tweet-url-error" className="mt-2 text-xs text-amber-deep">
               {urlError}
             </p>
           )}
@@ -249,12 +243,12 @@ export default function SubmitForm({
         <div className="mt-6">
           <div ref={turnstileContainerRef} />
           {!turnstileReady && !turnstileLoadFailed && (
-            <p className="text-xs text-ink-600 font-mono uppercase tracking-label">
+            <p className="text-xs text-ink-500 font-mono uppercase tracking-label-x">
               Loading verification…
             </p>
           )}
           {turnstileLoadFailed && !turnstileReady && (
-            <p className="text-xs text-alert-deep">
+            <p className="text-xs text-amber-deep">
               Couldn&apos;t load verification (Cloudflare Turnstile may be blocked
               by an ad-blocker or your network). Refresh the page to try again.
             </p>
@@ -264,7 +258,7 @@ export default function SubmitForm({
         {formError && (
           <div
             role="alert"
-            className="mt-6 rounded-md border border-alert/40 bg-alert-dim px-4 py-3 text-sm text-alert-deep"
+            className="mt-6 rounded-[10px] border border-amber-deep/30 bg-amber-dim px-4 py-3 text-sm text-amber-deep"
           >
             {formError}
           </div>
@@ -272,7 +266,7 @@ export default function SubmitForm({
 
         <Button
           type="submit"
-          variant="primary"
+          variant="accent"
           disabled={submitting}
           className="mt-6 w-full sm:w-auto"
         >
@@ -300,28 +294,27 @@ function SuccessPanel({
       : "Submission received";
 
   // needs_review and already_tracked both use the muted ink treatment —
-  // neither is a "new pick added to the record" outcome, so we don't want
-  // them to wear the green signal accent.
-  const useSignalAccent = !isNeedsReview && !isAlreadyTracked;
+  // neither is a "new pick added to the record" outcome.
+  const useAmberAccent = !isNeedsReview && !isAlreadyTracked;
 
-  const containerClass = useSignalAccent
-    ? "border-signal/40 bg-signal-dim"
-    : "border-ink-800 bg-ink-800/40";
-  const eyebrowClass = useSignalAccent ? "text-signal" : "text-ink-400";
+  const containerClass = useAmberAccent
+    ? "border-amber-deep/30 bg-amber-dim"
+    : "border-rule bg-paper-2";
+  const eyebrowClass = useAmberAccent ? "text-amber-deep" : "text-ink-500";
 
   return (
-    <div className={`rounded-xl border p-6 ${containerClass}`}>
+    <div className={`rounded-[16px] border p-6 shadow-card ${containerClass}`}>
       <div
-        className={`font-mono text-[10px] uppercase tracking-label mb-3 ${eyebrowClass}`}
+        className={`font-mono text-[10px] uppercase tracking-label-x font-medium mb-3 ${eyebrowClass}`}
       >
         {eyebrow}
       </div>
-      <h2 className="font-display font-black text-2xl sm:text-3xl tracking-display leading-tight text-white">
+      <h2 className="font-display font-extrabold text-2xl sm:text-3xl tracking-display leading-tight text-ink">
         {result.message}
       </h2>
 
       {isNeedsReview && (
-        <p className="mt-3 text-sm text-ink-200 leading-relaxed">
+        <p className="mt-3 text-sm text-ink-700 leading-relaxed">
           We only log picks we can match to a specific scheduled game so the
           outcome can be settled fairly. This one didn&apos;t match cleanly —
           a human will take a look and decide whether to add it to the record.
@@ -329,14 +322,14 @@ function SuccessPanel({
       )}
 
       {result.creator && (
-        <div className="mt-5 text-sm text-ink-200">
+        <div className="mt-5 text-sm text-ink-700">
           <div>
-            <span className="text-ink-400">Creator: </span>
-            <span className="text-white font-medium">{result.creator.display_name}</span>{" "}
-            <span className="text-ink-400 font-mono">{result.creator.handle}</span>
+            <span className="text-ink-500">Creator: </span>
+            <span className="text-ink font-semibold">{result.creator.display_name}</span>{" "}
+            <span className="text-ink-500 font-mono">{result.creator.handle}</span>
           </div>
           {result.creator.was_new && (
-            <div className="mt-1 text-ink-400 text-xs">
+            <div className="mt-1 text-ink-500 text-xs">
               New to the platform — pending admin review before appearing publicly.
             </div>
           )}
@@ -348,15 +341,15 @@ function SuccessPanel({
           {result.picks.map((p, i) => (
             <li
               key={i}
-              className="rounded-md border border-ink-800 bg-pitch px-3 py-2 text-sm"
+              className="rounded-[10px] border border-rule bg-paper-2 px-3.5 py-2.5 text-sm"
             >
-              <div className="text-white">
-                <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 mr-2">
+              <div className="text-ink">
+                <span className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mr-2">
                   {p.league ?? p.sport ?? "—"}
                 </span>
                 {p.event ?? formatPickDetail(p)}
               </div>
-              <div className="text-ink-400 text-xs mt-1 font-mono">
+              <div className="text-ink-500 text-xs mt-1 font-mono">
                 {p.pick_type}
                 {p.odds ? ` · ${p.odds}` : ""}
                 {" · via "}
@@ -370,23 +363,23 @@ function SuccessPanel({
 
       {isNeedsReview && result.unpinned_picks.length > 0 && (
         <div className="mt-5">
-          <div className="font-mono text-[10px] uppercase tracking-label text-ink-400 mb-2">
+          <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mb-2">
             What we saw
           </div>
           <ul className="space-y-2">
             {result.unpinned_picks.map((p, i) => (
               <li
                 key={i}
-                className="rounded-md border border-ink-800 bg-pitch px-3 py-2 text-sm"
+                className="rounded-[10px] border border-rule bg-paper-2 px-3.5 py-2.5 text-sm"
               >
-                <div className="text-white">
-                  <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 mr-2">
+                <div className="text-ink">
+                  <span className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mr-2">
                     {p.sport ?? "—"}
                   </span>
                   {p.event ??
                     formatPickDetail({ pick_type: p.pick_type, pick_detail: p.pick_detail })}
                 </div>
-                <div className="text-ink-400 text-xs mt-1 font-mono">
+                <div className="text-ink-500 text-xs mt-1 font-mono">
                   {p.pick_type}
                   {p.odds ? ` · ${p.odds}` : ""}
                 </div>
@@ -398,12 +391,12 @@ function SuccessPanel({
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <Button variant="primary" onClick={onSubmitAnother}>
+        <Button variant="accent" onClick={onSubmitAnother}>
           Submit another
         </Button>
         <a
           href="/"
-          className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-bold uppercase tracking-label text-ink-400 hover:text-white transition-colors"
+          className="inline-flex items-center justify-center rounded-[10px] px-4 py-2 text-sm font-semibold tracking-tight text-ink-700 hover:text-ink hover:bg-paper-3 transition-colors"
         >
           Back to records
         </a>
@@ -443,16 +436,14 @@ function ParlayLegs({ detail }: { detail: Record<string, unknown> }) {
   const legs = (detail?.legs as Leg[] | undefined) ?? [];
   if (legs.length === 0) return null;
   return (
-    <ol className="mt-3 space-y-1.5 border-l-2 border-ink-800 pl-3">
+    <ol className="mt-3 space-y-1.5 border-l-2 border-rule pl-3">
       {legs.map((leg, i) => (
-        <li key={i} className="text-xs text-ink-200 leading-snug">
-          <span className="font-mono text-[10px] uppercase tracking-label text-ink-400 mr-2">
+        <li key={i} className="text-xs text-ink-700 leading-snug">
+          <span className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mr-2">
             {leg.league ?? leg.sport ?? "—"}
           </span>
-          <span className="text-white">{leg.text || formatLeg(leg)}</span>
-          {leg.event && (
-            <span className="text-ink-600 ml-1.5">· {leg.event}</span>
-          )}
+          <span className="text-ink font-medium">{leg.text || formatLeg(leg)}</span>
+          {leg.event && <span className="text-ink-500 ml-1.5">· {leg.event}</span>}
         </li>
       ))}
     </ol>
