@@ -130,6 +130,8 @@ class PickUpdate(BaseModel):
     event_date: Optional[datetime] = None
     odds: Optional[str] = None
     pick_detail: Optional[Dict[str, Any]] = None
+    event_id: Optional[str] = None
+    event_provider: Optional[str] = None
 
 
 @router.patch("/{pick_id}")
