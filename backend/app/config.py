@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     posthog_host: str = "https://us.i.posthog.com"
 
     # Scheduler
-    resolve_interval_hours: int = 2
+    resolve_interval_minutes: int = 15
 
     # LLM pin fallback — last-resort gate that asks Claude to bind unpinned
     # picks to scheduled ESPN games. Off-switchable in case cost or quality

@@ -15,12 +15,9 @@ scheduler = AsyncIOScheduler()
 
 def setup_scheduler():
     """Register all background jobs."""
-    # Outcome resolution doesn't need to be near-real-time — every 2h is
-    # plenty for our scale and leaves headroom for the closing-odds capture
-    # job below.
     from datetime import datetime, timedelta, timezone
 
-    resolve_hours = getattr(settings, "resolve_interval_hours", 2)
+    resolve_minutes = getattr(settings, "resolve_interval_minutes", 15)
     closing_odds_minutes = getattr(settings, "closing_odds_interval_minutes", 30)
 
     # Both jobs fire ~30s after process start so a Railway redeploy doesn't
@@ -31,7 +28,7 @@ def setup_scheduler():
 
     scheduler.add_job(
         resolve_pending_outcomes,
-        trigger=IntervalTrigger(hours=resolve_hours),
+        trigger=IntervalTrigger(minutes=resolve_minutes),
         id="resolve_outcomes",
         replace_existing=True,
         next_run_time=first_run,
@@ -47,7 +44,7 @@ def setup_scheduler():
     scheduler.start()
     log.info(
         "Scheduler started",
-        resolve_interval_hours=resolve_hours,
+        resolve_interval_minutes=resolve_minutes,
         closing_odds_interval_minutes=closing_odds_minutes,
     )
 
