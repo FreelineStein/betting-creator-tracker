@@ -347,6 +347,82 @@ async def approve_source(
 
 
 # ---------------------------------------------------------------------------
+# Audit: date mispins
+# ---------------------------------------------------------------------------
+
+@router.get("/audit/date-mispins")
+@limiter.limit("30/minute")
+async def audit_date_mispins(
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+):
+    """
+    Find picks pinned to a game whose ET date is before the source tweet's
+    ET date — almost certainly a wrong-day mispin from the pre-fix pin
+    selector (which preferred soonest match over date-anchored match).
+
+    Returns one row per affected Source so the caller can batch-reprocess.
+    """
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
+    sources = (
+        db.query(Source)
+        .filter(Source.posted_at.isnot(None))
+        .order_by(Source.scraped_at.desc())
+        .all()
+    )
+
+    def _et_date(dt):
+        if dt is None:
+            return None
+        aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return aware.astimezone(et).date()
+
+    suspect = []
+    for s in sources:
+        posted_et = _et_date(s.posted_at)
+        if posted_et is None:
+            continue
+        picks = (
+            db.query(Pick).filter(Pick.source_id == s.source_id).all()
+        )
+        affected_picks = []
+        for p in picks:
+            ev_et = _et_date(p.event_date)
+            if ev_et is None:
+                continue
+            if ev_et < posted_et:
+                affected_picks.append({
+                    "pick_id": p.pick_id,
+                    "event_date_et": ev_et.isoformat(),
+                    "event_id": p.event_id,
+                    "event": p.event,
+                    "pick_type": p.pick_type,
+                    "status": p.status.value if p.status else None,
+                })
+        if not affected_picks:
+            continue
+        creator = (
+            db.query(Creator).filter(Creator.creator_id == s.creator_id).first()
+        )
+        suspect.append({
+            "source_id": s.source_id,
+            "post_url": s.post_url,
+            "posted_at_et": posted_et.isoformat(),
+            "creator": {
+                "creator_id": creator.creator_id if creator else None,
+                "display_name": creator.display_name if creator else None,
+            },
+            "affected_picks": affected_picks,
+        })
+
+    return {"count": len(suspect), "sources": suspect}
+
+
+# ---------------------------------------------------------------------------
 # Source lookup
 # ---------------------------------------------------------------------------
 
