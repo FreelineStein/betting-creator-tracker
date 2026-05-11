@@ -372,10 +372,13 @@ export default async function CreatorPage({ params }: Props) {
       {/* Active picks */}
       {pendingPicks.length > 0 && (
         <div className="mb-8">
-          <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-700 mb-3 flex items-center gap-2">
+          <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-700 mb-1.5 flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-amber pulse-amber" />
             Active Picks ({pendingPicks.length})
           </div>
+          <p className="text-xs text-ink-500 mb-3">
+            Picks settle within ~15 minutes after the game ends.
+          </p>
           <div className="space-y-2">
             {pendingPicks.map((pick) => (
               <PickRow key={pick.pick_id} pick={pick} />

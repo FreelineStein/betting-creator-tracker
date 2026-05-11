@@ -96,7 +96,7 @@ export default async function Home() {
       )}
 
       <p className="text-xs text-ink-500 mt-10">
-        Picks sourced from public social media posts. Records update as outcomes are resolved.
+        Picks sourced from public social media posts. Picks settle within ~15 minutes after the game ends.
       </p>
 
       {/* How it works */}
