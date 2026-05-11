@@ -12,7 +12,7 @@ import asyncio
 import re
 import httpx
 import structlog
-from datetime import datetime
+from datetime import datetime, timezone
 from html import unescape
 from typing import Optional
 from app.scrapers.base import BaseScraper, RawPost
@@ -104,12 +104,21 @@ def _extract_text_from_html(html: str) -> Optional[str]:
 
 
 def _extract_date_from_html(html: str) -> Optional[datetime]:
-    """Extract the tweet date from the oEmbed HTML link text."""
+    """
+    Extract the tweet date from the oEmbed HTML link text.
+
+    oEmbed only gives us the calendar day ("May 7, 2026"), no precise
+    time. Anchor it at noon UTC so the same date represents the same
+    calendar day in both UTC (May 7) and US Eastern (May 7 08:00) —
+    midnight UTC would collapse to the prior evening in ET and mis-pin
+    consecutive same-team series games to the wrong day.
+    """
     match = re.search(r'href="[^"]*twitter\.com/[^"]*">([^<]+)</a>\s*</blockquote>', html)
     if not match:
         return None
     try:
-        return datetime.strptime(match.group(1).strip(), "%B %d, %Y")
+        parsed = datetime.strptime(match.group(1).strip(), "%B %d, %Y")
+        return parsed.replace(hour=12, tzinfo=timezone.utc)
     except (ValueError, TypeError):
         return None
 

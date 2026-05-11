@@ -901,22 +901,24 @@ def find_opponent_in_schedule(
             if anchor_date.tzinfo
             else anchor_date.replace(tzinfo=timezone.utc)
         )
-        # Pre-game picks point at games that haven't started yet. Sort:
-        #   1. games at-or-after the anchor (1h slack) come first, soonest
-        #      first among them — that's the user's upcoming game
-        #   2. then games before the anchor, latest first
-        # This handles MLB/NHL series where two same-team games sit ±1 day
-        # apart — without this, naive abs-distance picks the just-finished
-        # game when the anchor is "tweet posted at midnight UTC" because
-        # the date-only signal from oEmbed lands closer to last night's
-        # commence_time than to tomorrow afternoon's.
-        slack = timedelta(hours=1)
+        # Match by ET calendar date — US sports schedule by ET day. Tweet
+        # scraper anchors posted_at at noon UTC so the ET date is stable.
+        # The user's pick for "today" means today's ET date; we prefer
+        # candidates whose commence_time falls on that same day, then the
+        # next day (late-night posts about tomorrow), then prior days.
+        from zoneinfo import ZoneInfo
+        et = ZoneInfo("America/New_York")
+        anchor_et_date = anchor.astimezone(et).date()
         def _rank(item):
-            ts = item[0].commence_time.timestamp()
-            is_future = item[0].commence_time >= anchor - slack
-            # Bucket 0 (future games): sort ascending — soonest upcoming first.
-            # Bucket 1 (past games): sort by latest-first (negate the ts).
-            return (0, ts) if is_future else (1, -ts)
+            commence_et = item[0].commence_time.astimezone(et).date()
+            day_delta = (commence_et - anchor_et_date).days
+            if day_delta == 0:
+                bucket = 0
+            elif day_delta > 0:
+                bucket = 1
+            else:
+                bucket = 2
+            return (bucket, item[0].commence_time.timestamp())
         candidates.sort(key=_rank)
     else:
         candidates.sort(key=lambda c: c[0].commence_time)
