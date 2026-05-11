@@ -15,7 +15,7 @@ we delete it and retry — same behavior the scrape route had inline.
 """
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import structlog
@@ -535,8 +535,17 @@ def _pin_pick_to_game(pick: ParsedPick, team: str, games: list) -> None:
     # would otherwise survive even though we now have the verified ESPN game.
     if pick.event_date is None:
         pick.event_date = commence_time
-    elif abs((pick.event_date - commence_time).total_seconds()) > 24 * 3600:
-        pick.event_date = commence_time
+    else:
+        # The parser sometimes emits a date-only string ("2025-05-08") which
+        # Pydantic parses as a naive datetime; commence_time from ESPN is
+        # always UTC-aware. Treat naive parser dates as UTC for comparison.
+        parser_aware = (
+            pick.event_date
+            if pick.event_date.tzinfo
+            else pick.event_date.replace(tzinfo=timezone.utc)
+        )
+        if abs((parser_aware - commence_time).total_seconds()) > 24 * 3600:
+            pick.event_date = commence_time
     # Use canonical short names (e.g. "Avalanche" not "Avs") so display,
     # event string, and outcome-resolution lookups all agree.
     if isinstance(pick.pick_detail, dict) and pick.pick_detail.get("team"):

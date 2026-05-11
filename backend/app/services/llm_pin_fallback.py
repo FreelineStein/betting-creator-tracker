@@ -15,7 +15,7 @@ Controlled by `settings.llm_pin_fallback_enabled` (default True).
 """
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import structlog
@@ -217,8 +217,17 @@ async def pin_unmatched_picks(
                 if game:
                     if pick.event_date is None:
                         pick.event_date = game.commence_time
-                    elif abs((pick.event_date - game.commence_time).total_seconds()) > 24 * 3600:
-                        pick.event_date = game.commence_time
+                    else:
+                        # Parser sometimes emits a naive date-only string;
+                        # game.commence_time is always UTC-aware. Treat naive
+                        # parser dates as UTC for comparison.
+                        parser_aware = (
+                            pick.event_date
+                            if pick.event_date.tzinfo
+                            else pick.event_date.replace(tzinfo=timezone.utc)
+                        )
+                        if abs((parser_aware - game.commence_time).total_seconds()) > 24 * 3600:
+                            pick.event_date = game.commence_time
                 pinned += 1
         else:
             if not isinstance(j, int) or j < 0:
@@ -245,8 +254,14 @@ async def pin_unmatched_picks(
         earliest = min(g.commence_time for g in leg_games)
         if pick.event_date is None:
             pick.event_date = earliest
-        elif abs((pick.event_date - earliest).total_seconds()) > 24 * 3600:
-            pick.event_date = earliest
+        else:
+            parser_aware = (
+                pick.event_date
+                if pick.event_date.tzinfo
+                else pick.event_date.replace(tzinfo=timezone.utc)
+            )
+            if abs((parser_aware - earliest).total_seconds()) > 24 * 3600:
+                pick.event_date = earliest
 
     log.info(
         "pin_fallback_complete",
