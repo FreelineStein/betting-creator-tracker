@@ -901,13 +901,23 @@ def find_opponent_in_schedule(
             if anchor_date.tzinfo
             else anchor_date.replace(tzinfo=timezone.utc)
         )
-        # Closest game to the anchor; ties broken by soonest commence_time.
-        candidates.sort(
-            key=lambda c: (
-                abs((c[0].commence_time - anchor).total_seconds()),
-                c[0].commence_time,
-            )
-        )
+        # Pre-game picks point at games that haven't started yet. Sort:
+        #   1. games at-or-after the anchor (1h slack) come first, soonest
+        #      first among them — that's the user's upcoming game
+        #   2. then games before the anchor, latest first
+        # This handles MLB/NHL series where two same-team games sit ±1 day
+        # apart — without this, naive abs-distance picks the just-finished
+        # game when the anchor is "tweet posted at midnight UTC" because
+        # the date-only signal from oEmbed lands closer to last night's
+        # commence_time than to tomorrow afternoon's.
+        slack = timedelta(hours=1)
+        def _rank(item):
+            ts = item[0].commence_time.timestamp()
+            is_future = item[0].commence_time >= anchor - slack
+            # Bucket 0 (future games): sort ascending — soonest upcoming first.
+            # Bucket 1 (past games): sort by latest-first (negate the ts).
+            return (0, ts) if is_future else (1, -ts)
+        candidates.sort(key=_rank)
     else:
         candidates.sort(key=lambda c: c[0].commence_time)
     chosen, matched_short, opponent_short = candidates[0]
