@@ -22,6 +22,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models import Source
 from app.scrapers.twitter import TwitterScraper
 from app.services.creator_lookup import find_or_create_creator_by_twitter_handle
 from app.services.tweet_ingestion import (
@@ -198,6 +199,10 @@ async def submit_pick(
     return {
         "status": status,
         "message": _user_message(result, was_new_creator),
+        # Stable handle the client can later POST back to /flag if the
+        # extracted picks don't match the post. None on the honeypot
+        # response and on extraction-failure paths where no Source exists.
+        "source_id": result.source_id,
         "creator": {
             "display_name": creator.display_name,
             "handle": author_handle,
@@ -213,11 +218,52 @@ async def submit_pick(
     }
 
 
+@router.post("/{source_id}/flag")
+@limiter.limit("20/hour")
+async def flag_submission(
+    request: Request,
+    source_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Mark a submission for manual review.
+
+    Triggered from the success panel when the user sees that the extracted
+    picks don't match the post (parlay split into singles, wrong line,
+    wrong odds, etc.). Anonymous + rate-limited; the worst case is a
+    spammer making my admin queue noisy, which is far better than gating
+    the affordance behind auth.
+
+    Idempotent — flagging an already-flagged source is a no-op.
+    """
+    source = db.query(Source).filter(Source.source_id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    if not source.flagged_for_review:
+        source.flagged_for_review = True
+        db.commit()
+        log.info("submission_flagged_for_review", source_id=source_id, post_url=source.post_url)
+        if posthog_client:
+            posthog_client.capture(
+                distinct_id=source_id,
+                event="submission flagged for review",
+                properties={
+                    "source_id": source_id,
+                    "post_url": source.post_url,
+                    "$process_person_profile": False,
+                },
+            )
+
+    return {"status": "flagged", "source_id": source_id}
+
+
 def _silent_ok() -> dict:
     """Honeypot response — looks like a normal success to the bot."""
     return {
         "status": "received",
         "message": "Thanks — your submission was received.",
+        "source_id": None,
         "creator": None,
         "picks_extracted": 0,
         "picks": [],

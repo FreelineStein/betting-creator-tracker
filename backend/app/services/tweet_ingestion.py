@@ -93,6 +93,10 @@ def _find_fantasy_score_props(picks: list["ParsedPick"]) -> list[str]:
 class TweetIngestionResult:
     """What happened when we tried to ingest a single tweet."""
     post_url: str
+    # Set once the Source row exists — populated both for new ingestions and
+    # already_tracked dedup hits, so callers can hand the user a stable id
+    # they can later flag for manual review.
+    source_id: Optional[str] = None
     new_source: bool = False
     already_tracked: bool = False         # source existed AND had picks
     picks_extracted: int = 0
@@ -144,6 +148,7 @@ async def ingest_tweet_for_creator(
         if existing_pick_count > 0:
             result.already_tracked = True
             result.picks_extracted = existing_pick_count
+            result.source_id = existing.source_id
             return result
         # Source exists but failed to extract anything before — retry it.
         log.info("retrying_source_with_zero_picks", url=post.post_url)
@@ -160,6 +165,7 @@ async def ingest_tweet_for_creator(
     db.add(source)
     db.flush()
     result.new_source = True
+    result.source_id = source.source_id
 
     parsed_picks, extraction_method, extracted_text = await _extract_picks(post, source)
 

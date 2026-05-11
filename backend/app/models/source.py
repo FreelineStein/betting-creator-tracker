@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, JSON, Enum as SAEnum, ForeignKey, Text
+from sqlalchemy import Boolean, Column, String, DateTime, JSON, Enum as SAEnum, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -54,6 +54,11 @@ class Source(Base):
 
     # Populated after successful or failed extraction
     extraction_attempts = Column(JSON, default=list)  # List of ExtractionAttempt dicts
+
+    # User-driven "this submission's picks don't look right" flag. Surfaced via
+    # GET /admin/flagged for batch review; independent of extraction_status,
+    # which describes how the parser fared, not whether the result was right.
+    flagged_for_review = Column(Boolean, nullable=False, default=False, server_default="false")
 
     scraped_at = Column(DateTime(timezone=True), server_default=func.now())
 

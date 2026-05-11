@@ -346,6 +346,85 @@ async def approve_source(
     }
 
 
+# ---------------------------------------------------------------------------
+# user-flagged review queue
+# ---------------------------------------------------------------------------
+
+@router.get("/flagged")
+@limiter.limit("60/minute")
+async def list_flagged(
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+):
+    """
+    List sources a user flagged with "picks don't look right".
+
+    Independent of the needs_review queue — these submissions parsed +
+    pinned fine according to the pipeline, but the user told us the
+    output doesn't match the post. Typical cleanup is to reprocess after
+    a parser fix or to surgically correct via the picks endpoints.
+    """
+    sources = (
+        db.query(Source)
+        .filter(Source.flagged_for_review == True)  # noqa: E712 — SA needs ==
+        .order_by(Source.scraped_at.desc())
+        .all()
+    )
+    out = []
+    for s in sources:
+        creator = (
+            db.query(Creator).filter(Creator.creator_id == s.creator_id).first()
+        )
+        picks = (
+            db.query(Pick).filter(Pick.source_id == s.source_id)
+            .order_by(Pick.logged_at.asc())
+            .all()
+        )
+        out.append({
+            "source_id": s.source_id,
+            "post_url": s.post_url,
+            "posted_at": s.posted_at.isoformat() if s.posted_at else None,
+            "scraped_at": s.scraped_at.isoformat() if s.scraped_at else None,
+            "extraction_status": s.extraction_status.value if s.extraction_status else None,
+            "creator": {
+                "creator_id": creator.creator_id if creator else None,
+                "display_name": creator.display_name if creator else None,
+            },
+            "picks": [
+                {
+                    "pick_id": p.pick_id,
+                    "sport": p.sport,
+                    "league": p.league,
+                    "event": p.event,
+                    "pick_type": p.pick_type,
+                    "pick_detail": p.pick_detail,
+                    "odds": p.odds,
+                    "status": p.status.value if p.status else None,
+                }
+                for p in picks
+            ],
+        })
+    return {"count": len(out), "sources": out}
+
+
+@router.post("/sources/{source_id}/unflag")
+@limiter.limit("30/minute")
+async def unflag_source(
+    request: Request,
+    source_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+):
+    """Clear the user-flagged bit after a flag has been triaged."""
+    source = db.query(Source).filter(Source.source_id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found.")
+    source.flagged_for_review = False
+    db.commit()
+    return {"source_id": source_id, "flagged_for_review": False}
+
+
 @router.delete("/sources/{source_id}")
 @limiter.limit("30/minute")
 async def delete_source(
