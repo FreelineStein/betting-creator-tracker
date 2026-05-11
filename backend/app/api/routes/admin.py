@@ -347,6 +347,66 @@ async def approve_source(
 
 
 # ---------------------------------------------------------------------------
+# Source lookup
+# ---------------------------------------------------------------------------
+
+@router.get("/sources/{source_id}")
+@limiter.limit("60/minute")
+async def get_source(
+    request: Request,
+    source_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+):
+    """
+    Look up a Source by id — handy when you spot a wrong pick on the public
+    site and want the underlying post URL without digging through the DB.
+    Returns the source's metadata plus a thin pick list for triage.
+    """
+    source = db.query(Source).filter(Source.source_id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found.")
+    creator = (
+        db.query(Creator).filter(Creator.creator_id == source.creator_id).first()
+    )
+    picks = (
+        db.query(Pick).filter(Pick.source_id == source.source_id)
+        .order_by(Pick.logged_at.asc())
+        .all()
+    )
+    return {
+        "source_id": source.source_id,
+        "post_url": source.post_url,
+        "posted_at": source.posted_at.isoformat() if source.posted_at else None,
+        "scraped_at": source.scraped_at.isoformat() if source.scraped_at else None,
+        "extraction_status": (
+            source.extraction_status.value if source.extraction_status else None
+        ),
+        "flagged_for_review": source.flagged_for_review,
+        "creator": {
+            "creator_id": creator.creator_id if creator else None,
+            "display_name": creator.display_name if creator else None,
+        },
+        "picks": [
+            {
+                "pick_id": p.pick_id,
+                "sport": p.sport,
+                "league": p.league,
+                "event": p.event,
+                "event_date": p.event_date.isoformat() if p.event_date else None,
+                "pick_type": p.pick_type,
+                "pick_detail": p.pick_detail,
+                "odds": p.odds,
+                "status": p.status.value if p.status else None,
+                "event_id": p.event_id,
+                "event_provider": p.event_provider,
+            }
+            for p in picks
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
 # user-flagged review queue
 # ---------------------------------------------------------------------------
 
