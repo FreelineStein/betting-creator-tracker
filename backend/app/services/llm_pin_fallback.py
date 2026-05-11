@@ -156,7 +156,7 @@ async def pin_unmatched_picks(
         g.game_id for games in games_by_sport.values() for g in games
     }
 
-    prompt = _build_prompt(raw_text, picks_payload, candidates_payload)
+    prompt = _build_prompt(raw_text, picks_payload, candidates_payload, posted_at)
 
     raw_response: Optional[str] = None
     try:
@@ -282,8 +282,26 @@ def _build_prompt(
     raw_text: str,
     picks_payload: list[dict],
     candidates_payload: dict,
+    posted_at: Optional[datetime] = None,
 ) -> str:
+    # When two candidate games involve the same teams on consecutive days
+    # (common in MLB/NHL series), the LLM has no way to disambiguate
+    # without knowing when the user actually wrote the post. The tweet's
+    # posted_at is the tight anchor — "today's picks" almost always means
+    # the calendar day in ET that the tweet was posted, never one earlier.
+    when_line = ""
+    if posted_at:
+        anchor = posted_at if posted_at.tzinfo else posted_at.replace(tzinfo=timezone.utc)
+        when_line = (
+            f'\nThe post was published at {anchor.isoformat()} UTC. When the post says "today" '
+            f'or doesn\'t name a date, prefer candidate games whose commence_time falls on the '
+            f'same day or the next day after posting (in US Eastern time). Reject candidates '
+            f'whose commence_time is earlier than the post — a creator doesn\'t pre-tweet a pick '
+            f'for a game that has already happened.\n'
+        )
+
     return f"""You are matching sports-betting picks to specific scheduled games.
+{when_line}
 
 Below is the original creator post, a list of picks (or parlay legs) that
 the parser couldn't auto-bind to a game, and a list of candidate scheduled
