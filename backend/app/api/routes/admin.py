@@ -375,15 +375,30 @@ async def audit_date_mispins(
         .all()
     )
 
-    def _et_date(dt):
+    def _et_date(dt, normalize_midnight: bool = False):
+        """
+        Convert a UTC datetime to its ET calendar date.
+
+        `normalize_midnight=True` treats an exact-midnight-UTC value as
+        noon UTC of the same day — that's the corrected interpretation
+        for pre-fix Source.posted_at rows, which were stored at midnight
+        UTC (date-only parse) and shifted backward by a day in ET.
+        """
         if dt is None:
             return None
         aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        if (
+            normalize_midnight
+            and aware.hour == 0
+            and aware.minute == 0
+            and aware.second == 0
+        ):
+            aware = aware.replace(hour=12)
         return aware.astimezone(et).date()
 
     suspect = []
     for s in sources:
-        posted_et = _et_date(s.posted_at)
+        posted_et = _et_date(s.posted_at, normalize_midnight=True)
         if posted_et is None:
             continue
         picks = (
