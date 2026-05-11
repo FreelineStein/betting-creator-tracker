@@ -475,17 +475,29 @@ async def _enrich_with_opponents(
         games_by_sport[sport] = await get_scheduled_games(sport, anchor_date=posted_at)
 
     for pick in picks:
+        # Prefer the parser's date as the pin anchor; fall back to the
+        # tweet's posted_at. Resolves MLB/NHL series where the same two
+        # teams play on consecutive days — without an anchor the pin
+        # search returns the soonest of the candidates and mis-pins to
+        # the wrong day.
+        pick_anchor = pick.event_date or posted_at
         if pick.sport:
             team = _team_from_pick(pick)
             if team:
-                _pin_pick_to_game(pick, team, games_by_sport.get(pick.sport, []))
+                _pin_pick_to_game(
+                    pick, team, games_by_sport.get(pick.sport, []),
+                    anchor_date=pick_anchor,
+                )
 
         if pick.pick_type == "parlay":
             for leg in (pick.pick_detail or {}).get("legs", []) or []:
                 sport = leg.get("sport")
                 team = _team_from_leg(leg)
                 if sport and team:
-                    _pin_leg_to_game(leg, team, games_by_sport.get(sport, []))
+                    _pin_leg_to_game(
+                        leg, team, games_by_sport.get(sport, []),
+                        anchor_date=pick_anchor,
+                    )
 
 
 def _event_needs_opponent(event: Optional[str], team: Optional[str]) -> bool:
@@ -526,9 +538,15 @@ def _team_from_leg(leg: dict) -> Optional[str]:
     return None
 
 
-def _pin_pick_to_game(pick: ParsedPick, team: str, games: list) -> None:
+def _pin_pick_to_game(
+    pick: ParsedPick,
+    team: str,
+    games: list,
+    *,
+    anchor_date: Optional[datetime] = None,
+) -> None:
     """Pin a pick to its scheduled ESPN game; fill opponent only when missing."""
-    found = find_opponent_in_schedule(team, games)
+    found = find_opponent_in_schedule(team, games, anchor_date=anchor_date)
     if not found:
         return  # caller detects via missing event_id and routes to needs_review
     matched, opponent, commence_time, game_id, league = found
@@ -565,9 +583,15 @@ def _pin_pick_to_game(pick: ParsedPick, team: str, games: list) -> None:
         pick.league = league
 
 
-def _pin_leg_to_game(leg: dict, team: str, games: list) -> None:
+def _pin_leg_to_game(
+    leg: dict,
+    team: str,
+    games: list,
+    *,
+    anchor_date: Optional[datetime] = None,
+) -> None:
     """Pin a parlay leg to its scheduled ESPN game."""
-    found = find_opponent_in_schedule(team, games)
+    found = find_opponent_in_schedule(team, games, anchor_date=anchor_date)
     if not found:
         return
     matched, opponent, _commence, game_id, league = found

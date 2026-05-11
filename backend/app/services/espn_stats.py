@@ -837,7 +837,10 @@ def team_matches(query: str, candidate: str, *, use_aliases: bool = True) -> boo
 
 
 def find_opponent_in_schedule(
-    team: str, games: list[ScheduledGame]
+    team: str,
+    games: list[ScheduledGame],
+    *,
+    anchor_date: Optional[datetime] = None,
 ) -> Optional[tuple[str, str, datetime, str, Optional[str]]]:
     """
     Given a team or player name like "Cavs", "Cleveland Cavaliers", or
@@ -855,7 +858,12 @@ def find_opponent_in_schedule(
       1. exact match on full or short name
       2. resolve common abbreviations via _NICKNAME_ALIASES, then word match
       3. word-boundary match (any shared whole word, case-insensitive)
-    Picks the soonest matching game when several exist.
+
+    When `anchor_date` is provided, picks the game closest to it (most
+    common case: MLB/NHL series where the same two teams play on
+    consecutive days — picking the soonest blindly would mis-pin a tweet
+    about tomorrow's game to today's). Falls back to soonest when no
+    anchor is supplied.
     """
     if not team or not games:
         return None
@@ -886,9 +894,24 @@ def find_opponent_in_schedule(
             ],
         )
         return None
-    candidates.sort(key=lambda c: c[0].commence_time)
-    soonest, matched_short, opponent_short = candidates[0]
-    return matched_short, opponent_short, soonest.commence_time, soonest.game_id, soonest.league
+    if anchor_date is not None:
+        # Treat naive anchors as UTC — commence_time is always UTC-aware.
+        anchor = (
+            anchor_date
+            if anchor_date.tzinfo
+            else anchor_date.replace(tzinfo=timezone.utc)
+        )
+        # Closest game to the anchor; ties broken by soonest commence_time.
+        candidates.sort(
+            key=lambda c: (
+                abs((c[0].commence_time - anchor).total_seconds()),
+                c[0].commence_time,
+            )
+        )
+    else:
+        candidates.sort(key=lambda c: c[0].commence_time)
+    chosen, matched_short, opponent_short = candidates[0]
+    return matched_short, opponent_short, chosen.commence_time, chosen.game_id, chosen.league
 
 
 async def _get_event_ids(sport_path: str, league: str, date_str: str) -> list[str]:
