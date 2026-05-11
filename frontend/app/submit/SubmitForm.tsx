@@ -4,7 +4,12 @@ import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import { Button } from "../../components/brand";
-import { submitPick, SubmissionError, type SubmissionSuccess } from "../lib/api";
+import {
+  flagSubmission,
+  submitPick,
+  SubmissionError,
+  type SubmissionSuccess,
+} from "../lib/api";
 
 const TWEET_URL_PATTERN =
   /^https?:\/\/(?:www\.|mobile\.)?(?:twitter\.com|x\.com)\/[A-Za-z0-9_]{1,15}\/status\/\d+(?:[/?#].*)?$/;
@@ -277,6 +282,12 @@ export default function SubmitForm({
   );
 }
 
+type FlagState =
+  | { kind: "idle" }
+  | { kind: "flagging" }
+  | { kind: "flagged" }
+  | { kind: "error"; message: string };
+
 function SuccessPanel({
   result,
   onSubmitAnother,
@@ -284,8 +295,31 @@ function SuccessPanel({
   result: SubmissionSuccess;
   onSubmitAnother: () => void;
 }) {
+  const posthog = usePostHog();
+  const [flagState, setFlagState] = useState<FlagState>({ kind: "idle" });
   const isNeedsReview = result.status === "needs_review";
   const isAlreadyTracked = result.status === "already_tracked";
+
+  async function onFlag() {
+    if (!result.source_id || flagState.kind === "flagging") return;
+    setFlagState({ kind: "flagging" });
+    posthog?.capture("submission_flag_clicked", {
+      source_id: result.source_id,
+      submission_status: result.status,
+    });
+    try {
+      await flagSubmission(result.source_id);
+      setFlagState({ kind: "flagged" });
+    } catch (err) {
+      setFlagState({
+        kind: "error",
+        message:
+          err instanceof SubmissionError
+            ? err.message
+            : "We couldn't flag that submission.",
+      });
+    }
+  }
 
   const eyebrow = isNeedsReview
     ? "Pending review"
@@ -387,6 +421,39 @@ function SuccessPanel({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Flag-for-review affordance. Only shown when we actually have a
+          Source on file (source_id present) — the parser found at least
+          something and we want the user to call out mistakes. */}
+      {result.source_id && (
+        <div className="mt-5 border-t border-rule-soft pt-4 text-sm">
+          {flagState.kind === "flagged" ? (
+            <p className="text-ink-700">
+              Thanks — we&apos;ll take a look and clean it up.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-500">
+              <span>Picks don&apos;t look right?</span>
+              <button
+                type="button"
+                onClick={onFlag}
+                disabled={flagState.kind === "flagging"}
+                className="font-mono text-[11px] uppercase tracking-label-x font-semibold text-amber-deep underline decoration-amber-deep/40 underline-offset-4 hover:decoration-amber-deep disabled:opacity-50"
+              >
+                {flagState.kind === "flagging"
+                  ? "Flagging…"
+                  : "Flag for manual review →"}
+              </button>
+              <span className="text-ink-500">we&apos;ll clean it up.</span>
+              {flagState.kind === "error" && (
+                <span className="basis-full text-xs text-amber-deep mt-1">
+                  {flagState.message}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 

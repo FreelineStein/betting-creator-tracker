@@ -122,6 +122,10 @@ export interface UnpinnedPick {
 export interface SubmissionSuccess {
   status: "received" | "already_tracked" | "needs_review";
   message: string;
+  // Stable handle the client can POST back to /flag if the extracted picks
+  // don't match the post. Null on the honeypot response and any failure
+  // path where no Source row exists.
+  source_id: string | null;
   creator: {
     display_name: string;
     handle: string;
@@ -188,4 +192,27 @@ export async function submitPick(input: {
     detail || "Something went wrong. Please try again.",
     res.status,
   );
+}
+
+export async function flagSubmission(sourceId: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(
+      `${browserApiBase()}/api/v1/submissions/${encodeURIComponent(sourceId)}/flag`,
+      { method: "POST" },
+    );
+  } catch {
+    throw new SubmissionError(
+      "We couldn't reach the server. Please try again in a moment.",
+      0,
+    );
+  }
+  if (res.ok) return;
+  if (res.status === 429) {
+    throw new SubmissionError(
+      "Too many flags from this network — please try again later.",
+      429,
+    );
+  }
+  throw new SubmissionError("We couldn't flag that submission.", res.status);
 }
