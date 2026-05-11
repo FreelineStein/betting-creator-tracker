@@ -528,8 +528,14 @@ def _pin_pick_to_game(pick: ParsedPick, team: str, games: list) -> None:
     matched, opponent, commence_time, game_id, league = found
     pick.event_id = game_id
     pick.event_provider = "espn"
-    # Adopt the game's commence time when the parser missed event_date.
+    # Adopt the game's commence time when the parser missed event_date OR
+    # when its guess is far from the pinned game (>24h). The parser tends to
+    # hallucinate a year for dates like "May 8" — defaulting to the season
+    # better-represented in its training data — and a confidently-wrong year
+    # would otherwise survive even though we now have the verified ESPN game.
     if pick.event_date is None:
+        pick.event_date = commence_time
+    elif abs((pick.event_date - commence_time).total_seconds()) > 24 * 3600:
         pick.event_date = commence_time
     # Use canonical short names (e.g. "Avalanche" not "Avs") so display,
     # event string, and outcome-resolution lookups all agree.
