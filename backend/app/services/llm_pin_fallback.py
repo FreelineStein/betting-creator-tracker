@@ -210,10 +210,15 @@ async def pin_unmatched_picks(
                 pick.event_id = str(eid)
                 pick.event_provider = "espn"
                 # Mirror _pin_pick_to_game: lift the game's commence_time onto
-                # event_date when we don't have one. Without this, the homepage
-                # falls back to displaying "Today" for these rows.
-                if game and pick.event_date is None:
-                    pick.event_date = game.commence_time
+                # event_date when we don't have one, OR when the parser's date
+                # is far from the pinned game (>24h). The parser hallucinates
+                # years for dates like "May 8" and the verified ESPN game is
+                # ground truth once we've pinned to it.
+                if game:
+                    if pick.event_date is None:
+                        pick.event_date = game.commence_time
+                    elif abs((pick.event_date - game.commence_time).total_seconds()) > 24 * 3600:
+                        pick.event_date = game.commence_time
                 pinned += 1
         else:
             if not isinstance(j, int) or j < 0:
@@ -235,8 +240,13 @@ async def pin_unmatched_picks(
     # even when all their legs were on a specific past date.
     for i, leg_games in parlay_legs_pinned.items():
         pick = picks[i]
-        if pick.event_date is None and leg_games:
-            pick.event_date = min(g.commence_time for g in leg_games)
+        if not leg_games:
+            continue
+        earliest = min(g.commence_time for g in leg_games)
+        if pick.event_date is None:
+            pick.event_date = earliest
+        elif abs((pick.event_date - earliest).total_seconds()) > 24 * 3600:
+            pick.event_date = earliest
 
     log.info(
         "pin_fallback_complete",
