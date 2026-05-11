@@ -220,9 +220,30 @@ export default async function CreatorPage({ params }: Props) {
     ([, a], [, b]) => b.wins + b.losses - (a.wins + a.losses),
   );
 
-  const pendingPicks = picks.filter((p) => p.status === "pending");
-  const resolvedPicks = picks
-    .filter((p) => p.status !== "pending")
+  // "Today" boundary in ET, since US sports schedules read in ET and the
+  // formatter elsewhere on this page also pins to America/New_York.
+  // Comparing YYYY-MM-DD strings is safe — ISO dates sort chronologically.
+  const todayET = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
+  function isTodayOrFutureET(iso: string | null): boolean {
+    if (!iso) return false;
+    const d = new Date(iso).toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    });
+    return d >= todayET;
+  }
+
+  // Active = pending AND event hasn't fallen into the past (ET). A pending
+  // pick whose game already happened belongs in history; either the resolver
+  // hasn't caught it yet or it's structurally unresolvable.
+  const pendingPicks = picks.filter(
+    (p) => p.status === "pending" && isTodayOrFutureET(p.event_date),
+  );
+  const historyPicks = picks
+    .filter(
+      (p) => p.status !== "pending" || !isTodayOrFutureET(p.event_date),
+    )
     .slice()
     .sort((a, b) => {
       const at = a.event_date ? new Date(a.event_date).getTime() : 0;
@@ -392,7 +413,7 @@ export default async function CreatorPage({ params }: Props) {
         <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mb-3">
           Pick History
         </div>
-        {resolvedPicks.length === 0 ? (
+        {historyPicks.length === 0 ? (
           <p className="text-ink-500 text-sm">No resolved picks yet.</p>
         ) : (
           <div className="bg-paper-2 rounded-[14px] border border-rule shadow-card overflow-hidden">
@@ -403,7 +424,7 @@ export default async function CreatorPage({ params }: Props) {
               <div className="col-span-2">Odds</div>
               <div className="col-span-2">Result</div>
             </div>
-            {resolvedPicks.map((pick) => (
+            {historyPicks.map((pick) => (
               <div
                 key={pick.pick_id}
                 className="grid grid-cols-12 px-4 py-3 border-b border-rule last:border-0 text-sm items-center text-ink"
