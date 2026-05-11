@@ -91,12 +91,21 @@ function formatTrackedSince(iso: string | null): string | null {
   return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }).replace(" ", " '");
 }
 
-function isActive(pick: Pick): boolean {
-  const ts = new Date(pick.event_date ?? pick.logged_at);
-  if (Number.isNaN(ts.getTime())) return false;
-  if (ts.getTime() >= Date.now()) return true;
-  // Within 7 days past — keep recent resolved picks visible
-  return Date.now() - ts.getTime() < 7 * 24 * 3600 * 1000;
+// All "today" / "last N days" comparisons on the card use America/New_York,
+// matching the date formatter elsewhere and the way US sports schedules read.
+// Comparing YYYY-MM-DD strings is safe — ISO dates sort chronologically.
+function etDateStr(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function shiftET(daysOffset: number): string {
+  return new Date(Date.now() + daysOffset * 86_400_000).toLocaleDateString(
+    "en-CA",
+    { timeZone: "America/New_York" },
+  );
 }
 
 function earliestLoggedAt(picks: Pick[]): string | null {
@@ -239,8 +248,36 @@ export default function CreatorCards({ creators }: { creators: CreatorCardData[]
       {creators.map(({ creator, record, picks }) => {
         const sport = dominantSport(record?.accuracy_by_sport);
         const trackedSince = formatTrackedSince(earliestLoggedAt(picks));
-        const activePicks = picks.filter(isActive);
-        const recentPicks = activePicks.slice(0, 3);
+        // Card shows up to 3 picks total: active picks first (pending,
+        // event today-or-future, soonest first), then back-fill with
+        // resolved picks from the last 2 days (today + prior 2, most-recent
+        // first). Past-but-still-pending picks are deliberately excluded —
+        // the creator detail page already lists them in Pick History.
+        const todayET = shiftET(0);
+        const historyCutoffET = shiftET(-2);
+        const activePicks = picks
+          .filter((p) => {
+            if (p.status !== "pending") return false;
+            const d = etDateStr(p.event_date);
+            return d !== null && d >= todayET;
+          })
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(a.event_date).getTime() - new Date(b.event_date).getTime(),
+          );
+        const recentHistory = picks
+          .filter((p) => {
+            if (p.status === "pending") return false;
+            const d = etDateStr(p.event_date);
+            return d !== null && d >= historyCutoffET && d < todayET;
+          })
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(b.event_date).getTime() - new Date(a.event_date).getTime(),
+          );
+        const recentPicks = [...activePicks, ...recentHistory].slice(0, 3);
         const streak = computeStreak(picks);
         const hasRecord = record !== null && record.total_picks > 0;
         const winRatePct = hasRecord ? Math.round((record as CreatorRecord).win_rate * 100) : null;
