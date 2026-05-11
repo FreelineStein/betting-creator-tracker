@@ -50,9 +50,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <div className="flex items-center gap-5">
                 <Link
                   href="/submit"
-                  className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 hover:text-ink transition-colors"
+                  className="inline-flex items-center rounded-full border border-amber-deep/40 bg-amber-dim px-4 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-label-x text-amber-deep hover:bg-amber-deep hover:text-paper hover:border-amber-deep transition-colors"
                 >
-                  Submit a pick
+                  Submit a pick →
                 </Link>
               </div>
             </div>
