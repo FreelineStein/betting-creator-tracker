@@ -147,6 +147,14 @@ def test_team_matches_use_aliases_off():
     # With aliases disabled, "Sixers" no longer maps to "76ers".
     assert team_matches("Sixers", "Philadelphia 76ers", use_aliases=False) is False
 
+def test_team_matches_alias_as_to_athletics():
+    # Parser sometimes outputs "A's" (with or without apostrophe). Without
+    # this alias, normal pinning fails and the LLM pin fallback picks the
+    # wrong-day game from the candidate slate.
+    assert team_matches("A's", "Athletics") is True
+    assert team_matches("As", "Athletics") is True
+    assert team_matches("A's", "Oakland Athletics") is True
+
 def test_team_matches_red_sox_not_white_sox():
     # Regression: a single shared word ("sox") used to be enough to match.
     # That mis-pinned "Red Sox ML" submissions onto White Sox games when

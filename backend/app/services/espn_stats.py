@@ -788,6 +788,8 @@ _NICKNAME_ALIASES: dict[str, str] = {
     "chisox": "white sox",
     "m's": "mariners",
     "ms": "mariners",
+    "a's": "athletics",
+    "as": "athletics",           # parser sometimes drops the apostrophe
     "stros": "astros",
     "halos": "angels",
     "bucs-mlb": "pirates",       # disambiguates from Buccaneers if the parser ever feeds full text
