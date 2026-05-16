@@ -53,6 +53,9 @@ _MULTI_LEAGUE_SCOREBOARD: dict[str, list[tuple[str, str]]] = {
         ("soccer", "ita.coppa_italia"),    # Coppa Italia
         ("soccer", "fra.1"),               # Ligue 1
         ("soccer", "fra.coupe_de_france"), # Coupe de France
+        ("soccer", "por.1"),               # Primeira Liga (Portugal)
+        ("soccer", "swe.1"),               # Allsvenskan (Sweden)
+        ("soccer", "nor.1"),               # Eliteserien (Norway)
         ("soccer", "usa.1"),               # MLS
         ("soccer", "mex.1"),               # Liga MX
     ],
@@ -76,6 +79,9 @@ _LEAGUE_DISPLAY_NAMES: dict[str, str] = {
     "ita.coppa_italia": "Coppa Italia",
     "fra.1": "Ligue 1",
     "fra.coupe_de_france": "Coupe de France",
+    "por.1": "Primeira Liga",
+    "swe.1": "Allsvenskan",
+    "nor.1": "Eliteserien",
     "usa.1": "MLS",
     "mex.1": "Liga MX",
 }
