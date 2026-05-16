@@ -484,8 +484,10 @@ function formatPickDetail(p: { pick_type: string; pick_detail: Record<string, un
       return `${d.team ?? ""} ML`.trim();
     case "over_under":
       return `${d.direction ?? "Over"} ${d.total ?? ""}`.trim();
-    case "prop":
-      return `${d.player ?? ""} ${d.direction ?? "Over"} ${d.line ?? ""} ${d.prop ?? ""}`.trim();
+    case "prop": {
+      const prop = String(d.prop ?? "").replace(/^no\s+run\b/i, "Runs");
+      return `${d.player ?? ""} ${d.direction ?? "Over"} ${d.line ?? ""} ${prop}`.replace(/\s+/g, " ").trim();
+    }
     case "parlay":
       return `${(d.legs as unknown[] | undefined)?.length ?? 0}-leg parlay`;
     default:
@@ -529,8 +531,10 @@ function formatLeg(leg: Leg): string {
       return `${d.team ?? ""} ML`.trim();
     case "over_under":
       return `${d.direction ?? "Over"} ${d.total ?? ""}`.trim();
-    case "prop":
-      return `${d.player ?? ""} ${d.direction ?? "Over"} ${d.line ?? ""} ${d.prop ?? ""}`.trim();
+    case "prop": {
+      const prop = String(d.prop ?? "").replace(/^no\s+run\b/i, "Runs");
+      return `${d.player ?? ""} ${d.direction ?? "Over"} ${d.line ?? ""} ${prop}`.replace(/\s+/g, " ").trim();
+    }
     default:
       return leg.type ?? "leg";
   }

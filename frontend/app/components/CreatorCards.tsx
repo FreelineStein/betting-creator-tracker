@@ -71,7 +71,10 @@ function formatPickDetail(type: string, detail: Record<string, string | number>)
   if (type === "spread") return `${detail.team} ${detail.line}`;
   if (type === "moneyline") return `${detail.team} ML`;
   if (type === "over_under") return `${detail.direction} ${detail.total}`;
-  if (type === "prop") return `${detail.player} ${detail.direction ?? "Over"} ${detail.line} ${detail.prop}`;
+  if (type === "prop") {
+    const prop = String(detail.prop ?? "").replace(/^no\s+run\b/i, "Runs");
+    return `${detail.player ?? ""} ${detail.direction ?? "Over"} ${detail.line ?? ""} ${prop}`.replace(/\s+/g, " ").trim();
+  }
   return JSON.stringify(detail);
 }
 
