@@ -32,7 +32,12 @@ from app.models import (
 from app.pipeline.parser import ParsedPick, parse_picks
 from app.scrapers.base import RawPost
 from app.scrapers.twitter import extract_image_url, extract_text_from_image
-from app.services.espn_stats import find_opponent_in_schedule, get_scheduled_games
+from app.services.espn_stats import (
+    _normalize_team_query,
+    _word_match,
+    find_opponent_in_schedule,
+    get_scheduled_games,
+)
 from app.services.odds_api import find_odds_for_pick, get_odds_for_sport
 from app.services.outcome_resolver import parlay_all_legs_unresolvable
 from app.posthog_client import posthog_client
@@ -555,6 +560,36 @@ def _team_from_leg(leg: dict) -> Optional[str]:
     return None
 
 
+def _opponent_from_event(event: Optional[str], team: str) -> Optional[str]:
+    """
+    When the parsed event names two teams ("TeamA vs TeamB"), return the
+    team that isn't `team`. Used to require both-team agreement on the
+    pinned matchup — protects against league-mis-hint pin errors like a
+    Premier-League-narrowed slate pinning a Chelsea-vs-Man-City FA Cup
+    leg to a Chelsea-vs-Tottenham game. Returns None when the event names
+    a single team, contains a placeholder, or doesn't include `team`.
+    """
+    if not event or not team:
+        return None
+    needle = _normalize_team_query(team)
+    if not needle:
+        return None
+    for sep in (" vs. ", " vs ", " @ "):
+        if sep in event:
+            a, _mid, b = event.partition(sep)
+            a, b = a.strip(), b.strip()
+            if not a or not b:
+                return None
+            if a.lower() in _PLACEHOLDER_TOKENS or b.lower() in _PLACEHOLDER_TOKENS:
+                return None
+            if _word_match(needle, _normalize_team_query(a)):
+                return b
+            if _word_match(needle, _normalize_team_query(b)):
+                return a
+            return None
+    return None
+
+
 def _pin_pick_to_game(
     pick: ParsedPick,
     team: str,
@@ -563,7 +598,11 @@ def _pin_pick_to_game(
     anchor_date: Optional[datetime] = None,
 ) -> None:
     """Pin a pick to its scheduled ESPN game; fill opponent only when missing."""
-    found = find_opponent_in_schedule(team, games, anchor_date=anchor_date)
+    found = find_opponent_in_schedule(
+        team, games,
+        anchor_date=anchor_date,
+        opponent_hint=_opponent_from_event(pick.event, team),
+    )
     if not found:
         return  # caller detects via missing event_id and routes to needs_review
     matched, opponent, commence_time, game_id, league = found
@@ -608,7 +647,11 @@ def _pin_leg_to_game(
     anchor_date: Optional[datetime] = None,
 ) -> None:
     """Pin a parlay leg to its scheduled ESPN game."""
-    found = find_opponent_in_schedule(team, games, anchor_date=anchor_date)
+    found = find_opponent_in_schedule(
+        team, games,
+        anchor_date=anchor_date,
+        opponent_hint=_opponent_from_event(leg.get("event"), team),
+    )
     if not found:
         return
     matched, opponent, _commence, game_id, league = found

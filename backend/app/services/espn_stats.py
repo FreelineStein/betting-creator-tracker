@@ -1103,6 +1103,7 @@ def find_opponent_in_schedule(
     games: list[ScheduledGame],
     *,
     anchor_date: Optional[datetime] = None,
+    opponent_hint: Optional[str] = None,
 ) -> Optional[tuple[str, str, datetime, str, Optional[str]]]:
     """
     Given a team or player name like "Cavs", "Cleveland Cavaliers", or
@@ -1126,6 +1127,14 @@ def find_opponent_in_schedule(
     consecutive days — picking the soonest blindly would mis-pin a tweet
     about tomorrow's game to today's). Falls back to soonest when no
     anchor is supplied.
+
+    When `opponent_hint` is provided (caller knows both teams from the
+    parsed event), filters to candidate games whose opponent matches the
+    hint. Returns None if no candidate pairs both teams — usually means
+    the upstream league hint narrowed the slate to the wrong competition
+    (e.g. parser tagged "Premier League" on an FA Cup final), so refusing
+    to pin lets the unhinted LLM pin fallback retry on the full slate
+    instead of silently locking in a Chelsea-vs-the-wrong-opponent match.
     """
     if not team or not games:
         return None
@@ -1133,16 +1142,32 @@ def find_opponent_in_schedule(
     if not needle:
         return None
 
-    # (game, matched_team_short, opponent_short)
-    candidates: list[tuple[ScheduledGame, str, str]] = []
+    # (game, matched_team_short, opponent_short, opponent_full)
+    candidates: list[tuple[ScheduledGame, str, str, str]] = []
     for game in games:
         for full, short, opponent_full, opponent_short in [
             (game.home_team, game.home_short, game.away_team, game.away_short),
             (game.away_team, game.away_short, game.home_team, game.home_short),
         ]:
             if _word_match(needle, full) or _word_match(needle, short):
-                candidates.append((game, short, opponent_short))
+                candidates.append((game, short, opponent_short, opponent_full))
                 break
+
+    if opponent_hint and candidates:
+        opp_needle = _normalize_team_query(opponent_hint)
+        if opp_needle:
+            paired = [
+                c for c in candidates
+                if _word_match(opp_needle, c[2]) or _word_match(opp_needle, c[3])
+            ]
+            if not paired:
+                log.warning(
+                    "pin_opponent_mismatch",
+                    team=team, opponent_hint=opponent_hint,
+                    candidate_opponents=[c[2] for c in candidates[:6]],
+                )
+                return None
+            candidates = paired
 
     if not candidates:
         # Visibility hook: when this fires, the team name in the log is the
@@ -1184,7 +1209,7 @@ def find_opponent_in_schedule(
         candidates.sort(key=_rank)
     else:
         candidates.sort(key=lambda c: c[0].commence_time)
-    chosen, matched_short, opponent_short = candidates[0]
+    chosen, matched_short, opponent_short, _opp_full = candidates[0]
     return matched_short, opponent_short, chosen.commence_time, chosen.game_id, chosen.league
 
 
