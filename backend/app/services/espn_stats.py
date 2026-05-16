@@ -290,6 +290,11 @@ class ScheduledGame:
     # Final scores when completed=True. For tennis, these are sets won.
     home_score: Optional[int] = None
     away_score: Optional[int] = None
+    # ESPN-reported winner for matches where the score alone is ambiguous
+    # (soccer PK shootouts on cup matches: regulation+ET ends tied but
+    # competitors[].winner flags the shootout winner). "home" or "away";
+    # None when ESPN hasn't called it yet.
+    winner_side: Optional[str] = None
     # Human-readable league this game came from. Only populated for sports
     # that fan out across multiple ESPN league paths (SOCCER), so the
     # downstream pick can be tagged with its actual competition.
@@ -734,6 +739,12 @@ def _parse_scoreboard_event(
     }:
         completed = True
 
+    winner_side: Optional[str] = None
+    if home.get("winner") is True:
+        winner_side = "home"
+    elif away.get("winner") is True:
+        winner_side = "away"
+
     return ScheduledGame(
         game_id=event.get("id", ""),
         sport=sport,
@@ -745,6 +756,7 @@ def _parse_scoreboard_event(
         completed=completed,
         home_score=_parse_competitor_score(home),
         away_score=_parse_competitor_score(away),
+        winner_side=winner_side,
         league=league,
     )
 

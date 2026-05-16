@@ -60,6 +60,55 @@ def test_moneyline_underdog_win():
     assert result == PickStatus.won
 
 
+# --- Cup-winner moneyline (includes_extra_time + winner_side) ---
+
+def _cup_game(home="Chelsea", away="Manchester City", home_score=1, away_score=1, winner_side=None):
+    return GameResult(
+        game_id="cup-1",
+        sport="SOCCER",
+        home_team=home,
+        away_team=away,
+        home_score=home_score,
+        away_score=away_score,
+        completed=True,
+        commence_time=datetime(2026, 5, 16, 14, 0, tzinfo=timezone.utc),
+        home_short=home if home == "Chelsea" else None,
+        away_short="Man City" if away == "Manchester City" else None,
+        winner_side=winner_side,
+    )
+
+def test_cup_winner_via_pks_resolves_winner_even_when_regulation_tied():
+    # 1-1 ET draw, Man City wins on penalties. Without includes_extra_time
+    # the resolver would call it a push; with the flag it must use winner_side.
+    game = _cup_game(home_score=1, away_score=1, winner_side="away")
+    result = resolve_pick(
+        "moneyline",
+        {"team": "Man City", "includes_extra_time": True},
+        game,
+    )
+    assert result == PickStatus.won
+
+def test_cup_winner_opponent_wins_on_pks():
+    game = _cup_game(home_score=1, away_score=1, winner_side="home")
+    result = resolve_pick(
+        "moneyline",
+        {"team": "Man City", "includes_extra_time": True},
+        game,
+    )
+    assert result == PickStatus.lost
+
+def test_cup_winner_falls_back_to_score_when_winner_side_missing():
+    # Regulation win, no winner_side populated (e.g., stale data). The flag
+    # is set but we still resolve via score compare.
+    game = _cup_game(home_score=2, away_score=0, winner_side=None)
+    result = resolve_pick(
+        "moneyline",
+        {"team": "Chelsea", "includes_extra_time": True},
+        game,
+    )
+    assert result == PickStatus.won
+
+
 # --- Spread ---
 
 def test_spread_favorite_covers():

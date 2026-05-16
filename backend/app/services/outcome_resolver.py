@@ -49,6 +49,9 @@ def scheduled_to_game_result(sg: ScheduledGame) -> GameResult:
         away_score=sg.away_score,
         completed=sg.completed,
         commence_time=sg.commence_time,
+        home_short=sg.home_short,
+        away_short=sg.away_short,
+        winner_side=sg.winner_side,
     )
 
 
@@ -144,23 +147,50 @@ async def resolve_prop(
         return PickStatus.pending
 
 
+def _team_side(team: str, game: GameResult) -> Optional[str]:
+    """Return 'home' or 'away' if `team` matches either side of `game`.
+
+    Checks both the full displayName and the short form (when available)
+    so a pick stored as the short name ("Man City") still resolves against
+    a game whose home_team is the longer displayName ("Manchester City").
+    """
+    from app.services.espn_stats import team_matches
+
+    candidates_home = [game.home_team] + ([game.home_short] if game.home_short else [])
+    candidates_away = [game.away_team] + ([game.away_short] if game.away_short else [])
+    if any(team_matches(team, c) for c in candidates_home if c):
+        return "home"
+    if any(team_matches(team, c) for c in candidates_away if c):
+        return "away"
+    return None
+
+
 def _resolve_moneyline(pick_detail: dict, game: GameResult) -> PickStatus:
     """Did the picked team (or tennis player) win outright?"""
     # Tennis picks carry the competitor in `player` rather than `team`.
-    team = (pick_detail.get("team") or pick_detail.get("player") or "").lower()
+    team = (pick_detail.get("team") or pick_detail.get("player") or "").strip()
     if not team:
         return PickStatus.pending
 
-    home = game.home_team.lower()
-    away = game.away_team.lower()
-
-    if team in home:
-        picked_score, opp_score = game.home_score, game.away_score
-    elif team in away:
-        picked_score, opp_score = game.away_score, game.home_score
-    else:
-        log.warning("Moneyline team not found in game", team=team, home=home, away=away)
+    picked_side = _team_side(team, game)
+    if not picked_side:
+        log.warning(
+            "Moneyline team not found in game",
+            team=team, home=game.home_team, away=game.away_team,
+        )
         return PickStatus.pending
+
+    # Cup-final "to lift the cup" markets settle on the full match outcome
+    # (regulation + extra time + penalty shootout). Trust ESPN's winner_side
+    # over a raw score compare so a PK-decided draw resolves correctly.
+    if pick_detail.get("includes_extra_time") and game.winner_side:
+        return PickStatus.won if picked_side == game.winner_side else PickStatus.lost
+
+    picked_score, opp_score = (
+        (game.home_score, game.away_score)
+        if picked_side == "home"
+        else (game.away_score, game.home_score)
+    )
 
     if picked_score > opp_score:
         return PickStatus.won

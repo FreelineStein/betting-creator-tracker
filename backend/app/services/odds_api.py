@@ -56,6 +56,16 @@ class GameResult:
     away_score: Optional[int]
     completed: bool
     commence_time: datetime
+    # Short display names ("Man City" / "Cavaliers") — used in addition to
+    # the full home_team / away_team for resolver matching so picks that
+    # store the short form (set by _pin_pick_to_game) still resolve against
+    # games whose displayName is the longer form ("Manchester City").
+    home_short: Optional[str] = None
+    away_short: Optional[str] = None
+    # ESPN-reported match winner — populated when source is ESPN's scoreboard
+    # via scheduled_to_game_result. Used for cup-final moneylines settled by
+    # extra-time / penalty shootout where the regulation score is tied.
+    winner_side: Optional[str] = None
 
 
 async def get_completed_games(sport: str, days_back: int = 3) -> list[GameResult]:
