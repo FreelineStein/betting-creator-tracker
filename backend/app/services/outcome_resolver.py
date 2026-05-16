@@ -345,6 +345,56 @@ async def _resolve_first_inning_runs(
     return PickStatus.lost if user_expects_no_runs else PickStatus.won
 
 
+_BTTS_KEYWORDS = (
+    "both teams to score",
+    "btts",
+)
+
+
+def _is_btts_prop(prop_name: str) -> bool:
+    """True if `prop_name` describes the Both Teams To Score market."""
+    if not prop_name:
+        return False
+    needle = prop_name.lower()
+    return any(k in needle for k in _BTTS_KEYWORDS)
+
+
+async def _resolve_btts(
+    pick_detail: dict, event_id: str, anchor_date: Optional[datetime] = None,
+) -> PickStatus:
+    """
+    Resolve a Both-Teams-To-Score soccer prop against the pinned match's
+    final scoreline. detail.direction follows the binary-prop convention:
+    Over 0.5 = "Yes BTTS", Under 0.5 = "No BTTS". Cup-final variants that
+    include extra time are still fine because ESPN's competitors[].score
+    is the regulation + extra-time aggregate (PK shootout goals are not
+    counted toward BTTS by sportsbook convention either).
+    """
+    from app.services.espn_stats import find_completed_game_by_event_id
+
+    direction = (pick_detail.get("direction") or "").strip().lower()
+    if direction not in ("over", "under"):
+        return PickStatus.pending
+
+    sched = await find_completed_game_by_event_id(
+        "SOCCER", event_id, anchor_date=anchor_date,
+    )
+    if not sched or not sched.completed:
+        return PickStatus.pending
+    if sched.home_score is None or sched.away_score is None:
+        return PickStatus.pending
+
+    both_scored = sched.home_score > 0 and sched.away_score > 0
+    log.info(
+        "btts resolved",
+        event_id=event_id, home=sched.home_score, away=sched.away_score,
+        direction=direction, both_scored=both_scored,
+    )
+    if direction == "over":
+        return PickStatus.won if both_scored else PickStatus.lost
+    return PickStatus.lost if both_scored else PickStatus.won
+
+
 async def resolve_prop_pinned(
     pick_detail: dict,
     sport: str,
@@ -366,6 +416,11 @@ async def resolve_prop_pinned(
     # and aren't in find_player_stat — they read the linescore directly.
     if _is_first_inning_runs_prop(pick_detail.get("prop", "")):
         return await _resolve_first_inning_runs(pick_detail, event_id)
+
+    # Soccer Both-Teams-To-Score has no player — settles from the final
+    # match scoreline, same shape as the binary "Yes/No" prop.
+    if _is_btts_prop(pick_detail.get("prop", "")):
+        return await _resolve_btts(pick_detail, event_id, anchor_date=event_date)
 
     from app.services.espn_stats import (
         find_player_stat_in_event, find_player_stat,
