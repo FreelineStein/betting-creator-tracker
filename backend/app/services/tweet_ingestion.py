@@ -467,22 +467,27 @@ async def _enrich_with_opponents(
     `_all_picks_pinned` detects that and the caller routes the submission to
     needs_review rather than creating an unresolvable Pick row.
     """
-    sports_needed: set[str] = set()
+    # Collect every (sport, league_hint) the picks need so we can fetch
+    # narrower league-specific slates instead of one giant per-sport pull.
+    # Each unique combo gets its own scoreboard call (cached by hint key).
+    slates_needed: set[tuple[str, Optional[str]]] = set()
     for pick in picks:
         if pick.sport and _team_from_pick(pick):
-            sports_needed.add(pick.sport)
+            slates_needed.add((pick.sport, pick.league))
         if pick.pick_type == "parlay":
             for leg in (pick.pick_detail or {}).get("legs", []) or []:
                 sport = leg.get("sport")
                 if sport and _team_from_leg(leg):
-                    sports_needed.add(sport)
+                    slates_needed.add((sport, leg.get("league")))
 
-    if not sports_needed:
+    if not slates_needed:
         return
 
-    games_by_sport = {}
-    for sport in sports_needed:
-        games_by_sport[sport] = await get_scheduled_games(sport, anchor_date=posted_at)
+    games_by_key: dict[tuple[str, Optional[str]], list] = {}
+    for (sport, hint) in slates_needed:
+        games_by_key[(sport, hint)] = await get_scheduled_games(
+            sport, anchor_date=posted_at, league_hint=hint,
+        )
 
     for pick in picks:
         # Prefer the parser's date as the pin anchor; fall back to the
@@ -495,7 +500,8 @@ async def _enrich_with_opponents(
             team = _team_from_pick(pick)
             if team:
                 _pin_pick_to_game(
-                    pick, team, games_by_sport.get(pick.sport, []),
+                    pick, team,
+                    games_by_key.get((pick.sport, pick.league), []),
                     anchor_date=pick_anchor,
                 )
 
@@ -505,7 +511,8 @@ async def _enrich_with_opponents(
                 team = _team_from_leg(leg)
                 if sport and team:
                     _pin_leg_to_game(
-                        leg, team, games_by_sport.get(sport, []),
+                        leg, team,
+                        games_by_key.get((sport, leg.get("league")), []),
                         anchor_date=pick_anchor,
                     )
 

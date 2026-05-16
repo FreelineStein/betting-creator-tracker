@@ -317,6 +317,7 @@ async def get_scheduled_games(
     days_back: int = 1,
     days_ahead: int = 5,
     anchor_date: Optional[datetime] = None,
+    league_hint: Optional[str] = None,
 ) -> list[ScheduledGame]:
     """
     Fetch upcoming + recently-completed games from ESPN's free scoreboard.
@@ -332,6 +333,14 @@ async def get_scheduled_games(
     For sports with multiple ESPN tour paths (e.g. tennis ATP + WTA), all
     paths are fetched and merged. Tennis is special-cased — its scoreboard
     returns tournaments, with the actual matches nested inside groupings.
+
+    `league_hint` is a display-name optimization: when the parser already
+    tagged a pick with its league (e.g. "Premier League", "FA Cup"), pass
+    that string in and the fetch is narrowed to just that ESPN league path
+    instead of every league in _MULTI_LEAGUE_SCOREBOARD[sport]. Unknown or
+    None hint falls back to fetching the full slate, so a parser
+    misdiagnosis still has the LLM pin fallback's full-slate fetch as a
+    backstop.
     """
     sport_upper = sport.upper()
     leagues = _MULTI_LEAGUE_SCOREBOARD.get(sport_upper)
@@ -341,12 +350,26 @@ async def get_scheduled_games(
             return []
         leagues = [single]
 
+    hint_resolved: Optional[str] = None
+    if league_hint:
+        by_display = {v: k for k, v in _LEAGUE_DISPLAY_NAMES.items()}
+        candidate_key = by_display.get(league_hint)
+        if candidate_key:
+            filtered = [pair for pair in leagues if pair[1] == candidate_key]
+            if filtered:
+                leagues = filtered
+                hint_resolved = candidate_key
+
     now = datetime.now(timezone.utc)
     anchor = anchor_date or now
 
     # Cache key incorporates the anchor day so retroactive reprocesses don't
-    # poison the live-submission cache (and vice versa).
+    # poison the live-submission cache (and vice versa). Hinted and full-slate
+    # fetches use separate keys so a hinted fetch doesn't poison the unhinted
+    # cache with a narrower set of games.
     cache_key = f"{sport}:{days_back}:{days_ahead}:{anchor.date().isoformat()}"
+    if hint_resolved:
+        cache_key += f":hint={hint_resolved}"
     if cache_key in _scheduled_cache:
         cached_at, cached = _scheduled_cache[cache_key]
         if now - cached_at < _SCHEDULED_CACHE_TTL:
