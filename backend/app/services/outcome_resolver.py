@@ -263,7 +263,14 @@ def _resolve_over_under(pick_detail: dict, game: GameResult) -> PickStatus:
         return PickStatus.pending
 
     team = (pick_detail.get("team") or "").strip()
-    if team:
+    team_side = (pick_detail.get("team_side") or "").strip().lower()
+    if team_side in ("home", "away"):
+        # "Away Team Over/Under N" / "Home Team Over/Under N" markets — the
+        # parser couldn't reliably guess which named team was the away side,
+        # so it deferred the home/away assignment to here, where ESPN's
+        # competitors[].homeAway flag is the source of truth.
+        value = game.home_score if team_side == "home" else game.away_score
+    elif team:
         if team_matches(team, game.home_team):
             value = game.home_score
         elif team_matches(team, game.away_team):
@@ -579,6 +586,7 @@ async def resolve_parlay_legs_pinned(
             and (leg_detail.get("period") or "").upper() == "1H"
             and leg_sport.upper() == "SOCCER"
             and not leg_detail.get("team")  # game-total only for now
+            and not leg_detail.get("team_side")
         ):
             result = await _resolve_first_half_total(
                 leg_detail, leg_event_id, league_display=leg.get("league"),
