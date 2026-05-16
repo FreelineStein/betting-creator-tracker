@@ -32,9 +32,8 @@ export default function SubmitPage() {
       <SubmitForm turnstileSiteKey={siteKey} />
 
       <div className="mt-10 border-t border-rule pt-6 text-xs text-ink-500 leading-relaxed">
-        Submissions are anonymous and rate-limited. We never log who you are. Picks
-        from creators we don&apos;t already track go through a quick review before they
-        appear on the public list.
+        Submissions are anonymous and rate-limited. We never log who you are. New
+        creators appear under Lesser Known Creators until they build a track record.
       </div>
     </div>
   );

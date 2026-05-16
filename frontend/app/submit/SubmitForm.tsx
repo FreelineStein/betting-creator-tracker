@@ -363,8 +363,11 @@ function SuccessPanel({
             <span className="text-ink-500 font-mono">{result.creator.handle}</span>
           </div>
           {result.creator.was_new && (
-            <div className="mt-1 text-ink-500 text-xs">
-              New to the platform — pending admin review before appearing publicly.
+            <div className="mt-3 rounded-[10px] border border-rule bg-paper-2 px-3.5 py-2.5 text-sm text-ink">
+              🎉 <span className="font-semibold">{result.creator.display_name}</span> is new to
+              PickReceipts! They&apos;ll appear under{" "}
+              <span className="font-semibold">Lesser Known Creators</span> until they build a track
+              record.
             </div>
           )}
         </div>
