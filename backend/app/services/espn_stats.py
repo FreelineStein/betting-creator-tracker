@@ -806,20 +806,18 @@ def _words(s: str) -> set[str]:
 
 def _word_match(needle: str, candidate: str) -> bool:
     """
-    True if needle and candidate share a whole word (case-insensitive),
-    or are exactly equal. Stricter than substring: "Medvedev" no longer
-    matches "Medvedeva" (wrong word), and "Li" no longer matches the
-    word "Aliassime".
+    True if one of (needle, candidate) is a whole-word subset of the
+    other, case-insensitive. "Red Sox" no longer matches "White Sox" via
+    the shared word "Sox" — earlier intersection-based logic let "Red Sox"
+    moneylines mis-pin to a White Sox game when both played the same day.
     """
     if not needle or not candidate:
         return False
-    n = needle.strip().lower()
-    c = candidate.strip().lower()
-    if not n or not c:
+    n_words = _words(needle)
+    c_words = _words(candidate)
+    if not n_words or not c_words:
         return False
-    if n == c:
-        return True
-    return bool(_words(n) & _words(c))
+    return n_words <= c_words or c_words <= n_words
 
 
 def team_matches(query: str, candidate: str, *, use_aliases: bool = True) -> bool:
