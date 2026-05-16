@@ -527,3 +527,34 @@ async def delete_source(
         "source_id": source_id,
         "deleted_picks": deleted_picks,
     }
+
+
+@router.post("/creators/{creator_id}/recompute-record")
+@limiter.limit("30/minute")
+async def recompute_creator_record(
+    request: Request,
+    creator_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(require_admin),
+):
+    """
+    Force a CreatorRecord recompute from current Pick history.
+
+    Belt-and-suspenders for the rare case where the resolver cron sets a
+    pick's status but the matching recompute_record call doesn't land
+    (cron interrupted by a deploy, exception in a later phase, etc.).
+    recompute_record is idempotent — running it again just rederives the
+    record from the picks table.
+    """
+    creator = db.query(Creator).filter(Creator.creator_id == creator_id).first()
+    if not creator:
+        raise HTTPException(status_code=404, detail="Creator not found.")
+    record = recompute_record(creator_id, db)
+    db.commit()
+    return {
+        "creator_id": creator_id,
+        "wins": record.wins,
+        "losses": record.losses,
+        "pushes": record.pushes,
+        "total_picks": record.total_picks,
+    }
