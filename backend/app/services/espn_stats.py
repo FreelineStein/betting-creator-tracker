@@ -39,16 +39,22 @@ LEAGUE_MAP: dict[str, tuple[str, str]] = {
 _MULTI_LEAGUE_SCOREBOARD: dict[str, list[tuple[str, str]]] = {
     "TENNIS": [("tennis", "atp"), ("tennis", "wta")],
     "SOCCER": [
-        ("soccer", "eng.1"),           # Premier League
-        ("soccer", "uefa.champions"),  # Champions League
-        ("soccer", "uefa.europa"),     # Europa League
-        ("soccer", "uefa.europa.conf"),# Conference League
-        ("soccer", "esp.1"),           # La Liga
-        ("soccer", "ger.1"),           # Bundesliga
-        ("soccer", "ita.1"),           # Serie A
-        ("soccer", "fra.1"),           # Ligue 1
-        ("soccer", "usa.1"),           # MLS
-        ("soccer", "mex.1"),           # Liga MX
+        ("soccer", "eng.1"),               # Premier League
+        ("soccer", "eng.fa"),              # FA Cup
+        ("soccer", "eng.league_cup"),      # Carabao Cup (EFL Cup)
+        ("soccer", "uefa.champions"),      # Champions League
+        ("soccer", "uefa.europa"),         # Europa League
+        ("soccer", "uefa.europa.conf"),    # Conference League
+        ("soccer", "esp.1"),               # La Liga
+        ("soccer", "esp.copa_del_rey"),    # Copa del Rey
+        ("soccer", "ger.1"),               # Bundesliga
+        ("soccer", "ger.dfb_pokal"),       # DFB-Pokal
+        ("soccer", "ita.1"),               # Serie A
+        ("soccer", "ita.coppa_italia"),    # Coppa Italia
+        ("soccer", "fra.1"),               # Ligue 1
+        ("soccer", "fra.coupe_de_france"), # Coupe de France
+        ("soccer", "usa.1"),               # MLS
+        ("soccer", "mex.1"),               # Liga MX
     ],
 }
 
@@ -57,13 +63,19 @@ _MULTI_LEAGUE_SCOREBOARD: dict[str, list[tuple[str, str]]] = {
 # show "Europa League" instead of just "Soccer".
 _LEAGUE_DISPLAY_NAMES: dict[str, str] = {
     "eng.1": "Premier League",
+    "eng.fa": "FA Cup",
+    "eng.league_cup": "Carabao Cup",
     "uefa.champions": "Champions League",
     "uefa.europa": "Europa League",
     "uefa.europa.conf": "Conference League",
     "esp.1": "La Liga",
+    "esp.copa_del_rey": "Copa del Rey",
     "ger.1": "Bundesliga",
+    "ger.dfb_pokal": "DFB-Pokal",
     "ita.1": "Serie A",
+    "ita.coppa_italia": "Coppa Italia",
     "fra.1": "Ligue 1",
+    "fra.coupe_de_france": "Coupe de France",
     "usa.1": "MLS",
     "mex.1": "Liga MX",
 }
