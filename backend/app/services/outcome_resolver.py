@@ -395,6 +395,46 @@ async def _resolve_btts(
     return PickStatus.lost if both_scored else PickStatus.won
 
 
+async def _resolve_first_half_total(
+    pick_detail: dict,
+    event_id: str,
+    league_display: Optional[str] = None,
+) -> PickStatus:
+    """
+    Resolve a 1H (first-half) game-total over/under for a soccer match.
+
+    pick_detail looks like `{direction: "Over"|"Under", total: "1.5", period: "1H"}`.
+    Reads ESPN's summary endpoint for the pinned event and sums both teams'
+    first-half goals from competitors[].linescores[0]. Game-total only — a
+    team-total 1H pick (e.g. "Bayern 1H Goals Over 0.5") would need its own
+    handler since we'd need per-team linescores, not the combined total.
+    """
+    from app.services.espn_stats import get_soccer_first_half_total
+
+    direction = (pick_detail.get("direction") or "").strip().lower()
+    total_str = str(pick_detail.get("total") or "")
+    if direction not in ("over", "under") or not total_str:
+        return PickStatus.pending
+    try:
+        total = float(total_str)
+    except ValueError:
+        return PickStatus.pending
+
+    runs = await get_soccer_first_half_total(event_id, league_display=league_display)
+    if runs is None:
+        return PickStatus.pending
+
+    log.info(
+        "first_half_total resolved",
+        event_id=event_id, total=total, direction=direction, actual=runs,
+    )
+    if runs == total:
+        return PickStatus.push
+    if direction == "over":
+        return PickStatus.won if runs > total else PickStatus.lost
+    return PickStatus.won if runs < total else PickStatus.lost
+
+
 async def resolve_prop_pinned(
     pick_detail: dict,
     sport: str,
@@ -533,6 +573,15 @@ async def resolve_parlay_legs_pinned(
         if leg_type == "prop":
             result = await resolve_prop_pinned(
                 leg_detail, leg_sport, leg_event_id, event_date=anchor_date,
+            )
+        elif (
+            leg_type == "over_under"
+            and (leg_detail.get("period") or "").upper() == "1H"
+            and leg_sport.upper() == "SOCCER"
+            and not leg_detail.get("team")  # game-total only for now
+        ):
+            result = await _resolve_first_half_total(
+                leg_detail, leg_event_id, league_display=leg.get("league"),
             )
         else:
             game_sched = await find_completed_game_by_event_id(

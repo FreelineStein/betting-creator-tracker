@@ -553,6 +553,69 @@ async def get_first_inning_runs(event_id: str) -> Optional[int]:
     return total if seen_any_inning else None
 
 
+async def get_soccer_first_half_total(
+    event_id: str, league_display: Optional[str] = None,
+) -> Optional[int]:
+    """
+    Combined first-half goals for a soccer match — used by 1H game-total
+    over/under resolution.
+
+    Reads `header.competitions[0].competitors[].linescores[0].displayValue`
+    from the soccer summary endpoint. Each league has its own summary path,
+    so when `league_display` is supplied we hit that league directly;
+    otherwise we walk every league in _MULTI_LEAGUE_SCOREBOARD["SOCCER"]
+    until one returns a parsable response.
+
+    Returns None on lookup failure — callers treat that as "leave pending".
+    """
+    soccer_leagues = _MULTI_LEAGUE_SCOREBOARD.get("SOCCER", [])
+    by_display = {v: k for k, v in _LEAGUE_DISPLAY_NAMES.items()}
+    if league_display and by_display.get(league_display):
+        ordered = [("soccer", by_display[league_display])] + [
+            entry for entry in soccer_leagues if entry[1] != by_display[league_display]
+        ]
+    else:
+        ordered = list(soccer_leagues)
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for sport_path, league_key in ordered:
+            try:
+                resp = await client.get(
+                    f"{BASE_URL}/{sport_path}/{league_key}/summary",
+                    params={"event": event_id},
+                )
+            except Exception:
+                continue
+            if resp.status_code != 200:
+                continue
+            try:
+                data = resp.json()
+            except Exception:
+                continue
+            competitions = (data.get("header") or {}).get("competitions") or []
+            if not competitions:
+                continue
+            competitors = competitions[0].get("competitors") or []
+            total = 0
+            seen = False
+            for c in competitors:
+                linescores = c.get("linescores") or []
+                if not linescores:
+                    continue
+                first = linescores[0] if isinstance(linescores[0], dict) else None
+                if not first:
+                    continue
+                raw = first.get("displayValue")
+                try:
+                    total += int(raw)
+                    seen = True
+                except (TypeError, ValueError):
+                    continue
+            if seen:
+                return total
+    return None
+
+
 def _parse_competitor_score(competitor: dict) -> Optional[int]:
     """Pull final score from an ESPN competitor entry. Returns None if absent or unparseable."""
     raw = competitor.get("score")
