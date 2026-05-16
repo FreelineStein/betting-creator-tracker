@@ -39,25 +39,96 @@ LEAGUE_MAP: dict[str, tuple[str, str]] = {
 _MULTI_LEAGUE_SCOREBOARD: dict[str, list[tuple[str, str]]] = {
     "TENNIS": [("tennis", "atp"), ("tennis", "wta")],
     "SOCCER": [
+        # Top-5 European leagues + domestic cups + lower divisions
         ("soccer", "eng.1"),               # Premier League
+        ("soccer", "eng.2"),               # Championship
         ("soccer", "eng.fa"),              # FA Cup
         ("soccer", "eng.league_cup"),      # Carabao Cup (EFL Cup)
+        ("soccer", "esp.1"),               # La Liga
+        ("soccer", "esp.2"),               # La Liga 2
+        ("soccer", "esp.copa_del_rey"),    # Copa del Rey
+        ("soccer", "ger.1"),               # Bundesliga
+        ("soccer", "ger.2"),               # 2. Bundesliga
+        ("soccer", "ger.dfb_pokal"),       # DFB-Pokal
+        ("soccer", "ita.1"),               # Serie A
+        ("soccer", "ita.2"),               # Serie B
+        ("soccer", "ita.coppa_italia"),    # Coppa Italia
+        ("soccer", "fra.1"),               # Ligue 1
+        ("soccer", "fra.2"),               # Ligue 2
+        ("soccer", "fra.coupe_de_france"), # Coupe de France
+        # Other European top-flight + cups
+        ("soccer", "ned.1"),               # Eredivisie
+        ("soccer", "por.1"),               # Primeira Liga
+        ("soccer", "bel.1"),               # Belgian Pro League
+        ("soccer", "tur.1"),               # Süper Lig
+        ("soccer", "sco.1"),               # Scottish Premiership
+        ("soccer", "sco.cis"),             # Scottish League Cup
+        ("soccer", "swe.1"),               # Allsvenskan
+        ("soccer", "nor.1"),               # Eliteserien
+        ("soccer", "den.1"),               # Danish Superliga
+        ("soccer", "aut.1"),               # Austrian Bundesliga
+        ("soccer", "gre.1"),               # Greek Super League
+        ("soccer", "rus.1"),               # Russian Premier League
+        ("soccer", "irl.1"),               # Irish Premier Division
+        ("soccer", "cyp.1"),               # Cypriot First Division
+        # UEFA competitions
         ("soccer", "uefa.champions"),      # Champions League
         ("soccer", "uefa.europa"),         # Europa League
         ("soccer", "uefa.europa.conf"),    # Conference League
-        ("soccer", "esp.1"),               # La Liga
-        ("soccer", "esp.copa_del_rey"),    # Copa del Rey
-        ("soccer", "ger.1"),               # Bundesliga
-        ("soccer", "ger.dfb_pokal"),       # DFB-Pokal
-        ("soccer", "ita.1"),               # Serie A
-        ("soccer", "ita.coppa_italia"),    # Coppa Italia
-        ("soccer", "fra.1"),               # Ligue 1
-        ("soccer", "fra.coupe_de_france"), # Coupe de France
-        ("soccer", "por.1"),               # Primeira Liga (Portugal)
-        ("soccer", "swe.1"),               # Allsvenskan (Sweden)
-        ("soccer", "nor.1"),               # Eliteserien (Norway)
+        ("soccer", "uefa.nations"),        # Nations League
+        ("soccer", "uefa.euro"),           # Euros
+        ("soccer", "uefa.euroq"),          # Euros Qualifying
+        ("soccer", "uefa.wchampions"),     # Women's Champions League
+        ("soccer", "uefa.weuro"),          # Women's Euros
+        # FIFA / worldwide
+        ("soccer", "fifa.world"),          # World Cup
+        ("soccer", "fifa.worldq.uefa"),    # WC Qualifying (UEFA)
+        ("soccer", "fifa.worldq.conmebol"),# WC Qualifying (CONMEBOL)
+        ("soccer", "fifa.worldq.concacaf"),# WC Qualifying (CONCACAF)
+        ("soccer", "fifa.worldq.afc"),     # WC Qualifying (AFC)
+        ("soccer", "fifa.worldq.caf"),     # WC Qualifying (CAF)
+        ("soccer", "fifa.cwc"),            # FIFA Club World Cup
+        ("soccer", "fifa.wwc"),            # FIFA Women's World Cup
+        ("soccer", "fifa.olympics"),       # Men's Olympics
+        ("soccer", "fifa.w.olympics"),     # Women's Olympics
+        # CONCACAF
+        ("soccer", "concacaf.champions"),  # Concacaf Champions Cup
+        ("soccer", "concacaf.leagues.cup"),# Leagues Cup
+        ("soccer", "concacaf.gold"),       # Gold Cup
+        ("soccer", "concacaf.nations.league"), # Nations League
+        # CONMEBOL
+        ("soccer", "conmebol.libertadores"),# Copa Libertadores
+        ("soccer", "conmebol.sudamericana"),# Copa Sudamericana
+        ("soccer", "conmebol.america"),    # Copa América
+        # AFC
+        ("soccer", "afc.champions"),       # AFC Champions League Elite
+        ("soccer", "afc.asian.cup"),       # AFC Asian Cup
+        # CAF
+        ("soccer", "caf.champions"),       # CAF Champions League
+        ("soccer", "caf.nations"),         # Africa Cup of Nations
+        # Americas
         ("soccer", "usa.1"),               # MLS
+        ("soccer", "usa.nwsl"),            # NWSL
+        ("soccer", "usa.usl.1"),           # USL Championship
         ("soccer", "mex.1"),               # Liga MX
+        ("soccer", "arg.1"),               # Argentine Primera
+        ("soccer", "bra.1"),               # Brazilian Serie A
+        ("soccer", "chi.1"),               # Chilean Primera División
+        ("soccer", "col.1"),               # Colombian Primera A
+        ("soccer", "ecu.1"),               # Ecuadorian LigaPro
+        ("soccer", "per.1"),               # Peruvian Liga 1
+        ("soccer", "uru.1"),               # Uruguayan Liga
+        ("soccer", "par.1"),               # Paraguayan Primera
+        ("soccer", "ven.1"),               # Venezuelan Primera
+        # Asia
+        ("soccer", "jpn.1"),               # J League
+        ("soccer", "ksa.1"),               # Saudi Pro League
+        ("soccer", "chn.1"),               # Chinese Super League
+        ("soccer", "aus.1"),               # A-League
+        ("soccer", "ind.1"),               # Indian Super League
+        # Africa
+        ("soccer", "rsa.1"),               # South African Premiership
+        ("soccer", "nga.1"),               # Nigerian Premier League
     ],
 }
 
@@ -65,25 +136,100 @@ _MULTI_LEAGUE_SCOREBOARD: dict[str, list[tuple[str, str]]] = {
 # ScheduledGame with the league it came from so the UI and pick records can
 # show "Europa League" instead of just "Soccer".
 _LEAGUE_DISPLAY_NAMES: dict[str, str] = {
+    # England
     "eng.1": "Premier League",
+    "eng.2": "Championship",
     "eng.fa": "FA Cup",
     "eng.league_cup": "Carabao Cup",
+    # Spain
+    "esp.1": "La Liga",
+    "esp.2": "La Liga 2",
+    "esp.copa_del_rey": "Copa del Rey",
+    # Germany
+    "ger.1": "Bundesliga",
+    "ger.2": "2. Bundesliga",
+    "ger.dfb_pokal": "DFB-Pokal",
+    # Italy
+    "ita.1": "Serie A",
+    "ita.2": "Serie B",
+    "ita.coppa_italia": "Coppa Italia",
+    # France
+    "fra.1": "Ligue 1",
+    "fra.2": "Ligue 2",
+    "fra.coupe_de_france": "Coupe de France",
+    # Other Europe
+    "ned.1": "Eredivisie",
+    "por.1": "Primeira Liga",
+    "bel.1": "Belgian Pro League",
+    "tur.1": "Süper Lig",
+    "sco.1": "Scottish Premiership",
+    "sco.cis": "Scottish League Cup",
+    "swe.1": "Allsvenskan",
+    "nor.1": "Eliteserien",
+    "den.1": "Danish Superliga",
+    "aut.1": "Austrian Bundesliga",
+    "gre.1": "Greek Super League",
+    "rus.1": "Russian Premier League",
+    "irl.1": "Irish Premier Division",
+    "cyp.1": "Cypriot First Division",
+    # UEFA
     "uefa.champions": "Champions League",
     "uefa.europa": "Europa League",
     "uefa.europa.conf": "Conference League",
-    "esp.1": "La Liga",
-    "esp.copa_del_rey": "Copa del Rey",
-    "ger.1": "Bundesliga",
-    "ger.dfb_pokal": "DFB-Pokal",
-    "ita.1": "Serie A",
-    "ita.coppa_italia": "Coppa Italia",
-    "fra.1": "Ligue 1",
-    "fra.coupe_de_france": "Coupe de France",
-    "por.1": "Primeira Liga",
-    "swe.1": "Allsvenskan",
-    "nor.1": "Eliteserien",
+    "uefa.nations": "Nations League",
+    "uefa.euro": "Euros",
+    "uefa.euroq": "Euros Qualifying",
+    "uefa.wchampions": "Women's Champions League",
+    "uefa.weuro": "Women's Euros",
+    # FIFA / worldwide
+    "fifa.world": "World Cup",
+    "fifa.worldq.uefa": "World Cup Qualifying (UEFA)",
+    "fifa.worldq.conmebol": "World Cup Qualifying (CONMEBOL)",
+    "fifa.worldq.concacaf": "World Cup Qualifying (CONCACAF)",
+    "fifa.worldq.afc": "World Cup Qualifying (AFC)",
+    "fifa.worldq.caf": "World Cup Qualifying (CAF)",
+    "fifa.cwc": "FIFA Club World Cup",
+    "fifa.wwc": "Women's World Cup",
+    "fifa.olympics": "Olympics",
+    "fifa.w.olympics": "Women's Olympics",
+    # CONCACAF
+    "concacaf.champions": "Concacaf Champions Cup",
+    "concacaf.leagues.cup": "Leagues Cup",
+    "concacaf.gold": "Gold Cup",
+    "concacaf.nations.league": "Concacaf Nations League",
+    # CONMEBOL
+    "conmebol.libertadores": "Copa Libertadores",
+    "conmebol.sudamericana": "Copa Sudamericana",
+    "conmebol.america": "Copa América",
+    # AFC
+    "afc.champions": "AFC Champions League",
+    "afc.asian.cup": "AFC Asian Cup",
+    # CAF
+    "caf.champions": "CAF Champions League",
+    "caf.nations": "Africa Cup of Nations",
+    # Americas
     "usa.1": "MLS",
+    "usa.nwsl": "NWSL",
+    "usa.usl.1": "USL Championship",
     "mex.1": "Liga MX",
+    "arg.1": "Argentine Primera",
+    "bra.1": "Brazilian Serie A",
+    "chi.1": "Chilean Primera",
+    "col.1": "Colombian Primera",
+    "ecu.1": "Ecuadorian LigaPro",
+    "per.1": "Peruvian Liga 1",
+    "uru.1": "Uruguayan Primera",
+    "par.1": "Paraguayan Primera",
+    "ven.1": "Venezuelan Primera",
+    # Asia
+    "jpn.1": "J League",
+    "ksa.1": "Saudi Pro League",
+    "chn.1": "Chinese Super League",
+    "aus.1": "A-League",
+    "ind.1": "Indian Super League",
+    # Africa
+    "rsa.1": "South African Premiership",
+    "nga.1": "Nigerian Premier League",
 }
 
 # Map prop stat names to ESPN box score label names per sport
@@ -352,8 +498,8 @@ async def get_scheduled_games(
 
     hint_resolved: Optional[str] = None
     if league_hint:
-        by_display = {v: k for k, v in _LEAGUE_DISPLAY_NAMES.items()}
-        candidate_key = by_display.get(league_hint)
+        by_display_lower = {v.lower(): k for k, v in _LEAGUE_DISPLAY_NAMES.items()}
+        candidate_key = by_display_lower.get(league_hint.strip().lower())
         if candidate_key:
             filtered = [pair for pair in leagues if pair[1] == candidate_key]
             if filtered:
