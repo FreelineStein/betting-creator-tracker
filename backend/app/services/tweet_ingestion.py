@@ -417,6 +417,16 @@ async def _enrich_with_odds(picks: list[ParsedPick]) -> None:
         if pick.sport not in odds_by_sport or not odds_by_sport[pick.sport]:
             continue
         team = (pick.pick_detail or {}).get("team") if isinstance(pick.pick_detail, dict) else None
+        # Game-total over/unders carry direction + total but no team, so
+        # find_odds_for_pick can't pick a game. Fall back to either side of
+        # the event string ("Diamondbacks vs Rockies") since _find_game_for_team
+        # matches against both home and away.
+        if not team and pick.event:
+            for part in pick.event.replace(" vs ", "|").replace(" @ ", "|").replace(" vs. ", "|").split("|"):
+                cleaned = part.strip()
+                if cleaned:
+                    team = cleaned
+                    break
         odds = find_odds_for_pick(
             team=team,
             pick_type=pick.pick_type,
