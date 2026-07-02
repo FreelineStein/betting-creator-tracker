@@ -1,5 +1,7 @@
 # CLAUDE.md — PickReceipts (Betting Creator Tracker)
 
+This file is self-contained architecture/reference for the repo (stack, structure, data flow, admin tooling, commands). The vault mirror at `/Users/jacobstein/Brain/Projects/Pick-Receipts/CLAUDE.md` holds the higher-level goal, current-state narrative, and the *why* behind key decisions — check it for that context; don't duplicate it here.
+
 ## Project Goal
 
 Track sports betting creators across social media. Ingest their public posts, extract picks via an LLM-driven pipeline, build transparent W/L records, and surface tail/fade signals weighted by historical accuracy.
