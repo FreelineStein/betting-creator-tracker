@@ -78,6 +78,8 @@ async def get_completed_games(sport: str, days_back: int = 3) -> list[GameResult
         log.warning("No Odds API key mapping for sport", sport=sport)
         return []
 
+    if not settings.odds_api_enabled:
+        return []
     if not settings.the_odds_api_key:
         log.warning("THE_ODDS_API_KEY not configured — skipping outcome resolution")
         return []
@@ -159,6 +161,8 @@ async def get_odds_for_sport(sport: str) -> list[dict]:
     """
     sport_key = SPORT_KEY_MAP.get(sport.upper())
     if not sport_key:
+        return []
+    if not settings.odds_api_enabled:
         return []
     if not settings.the_odds_api_key:
         log.warning("THE_ODDS_API_KEY not configured — skipping odds enrichment")

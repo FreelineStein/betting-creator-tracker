@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Odds/Sports
     the_odds_api_key: Optional[str] = None
     the_odds_api_key_env: Optional[str] = None
+    # Paused 2026-09-29: subscription cancelled. When off, every Odds API
+    # call short-circuits (no submission/closing odds, no Odds API fallback
+    # in the resolver) and the closing-odds job isn't scheduled. Set
+    # ODDS_API_ENABLED=true with a live key to turn it back on.
+    odds_api_enabled: bool = False
 
     # Security
     admin_api_key: Optional[str] = None

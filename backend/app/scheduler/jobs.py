@@ -33,19 +33,21 @@ def setup_scheduler():
         replace_existing=True,
         next_run_time=first_run,
     )
-    scheduler.add_job(
-        capture_closing_odds,
-        trigger=IntervalTrigger(minutes=closing_odds_minutes),
-        id="closing_odds",
-        replace_existing=True,
-        next_run_time=first_run,
-    )
+    if settings.odds_api_enabled:
+        scheduler.add_job(
+            capture_closing_odds,
+            trigger=IntervalTrigger(minutes=closing_odds_minutes),
+            id="closing_odds",
+            replace_existing=True,
+            next_run_time=first_run,
+        )
 
     scheduler.start()
     log.info(
         "Scheduler started",
         resolve_interval_minutes=resolve_minutes,
         closing_odds_interval_minutes=closing_odds_minutes,
+        odds_api_enabled=settings.odds_api_enabled,
     )
 
 
