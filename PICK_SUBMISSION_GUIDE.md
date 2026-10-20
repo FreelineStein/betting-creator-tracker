@@ -7,7 +7,7 @@ Step-by-step instructions for adding picks to the Pick Receipts app.
 ## Prerequisites
 
 - **Backend URL:** `https://believable-mindfulness-production-12eb.up.railway.app`
-- **Admin API Key:** `Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo`
+- **Admin API Key:** set `ADMIN_API_KEY` in your shell from the Railway service variables (`export ADMIN_API_KEY=...`). Never paste the key into this file or any committed file.
 - All write endpoints require the admin key in the `Authorization: Bearer <key>` header.
 
 ---
@@ -37,7 +37,7 @@ If the creator posted picks in a tweet, use the tweet scraping endpoint. It will
 
 ```bash
 curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v1/scrape/tweets \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "creator_id": "CREATOR_ID_HERE",
@@ -56,7 +56,7 @@ curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v
 **Example with a real tweet:**
 ```bash
 curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v1/scrape/tweets \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "creator_id": "5e27ae57-cd6b-4179-8485-acb6c914c5d8",
@@ -74,7 +74,7 @@ If you want to enter a pick directly without a tweet URL:
 
 ```bash
 curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/ \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "creator_id": "CREATOR_ID_HERE",
@@ -113,7 +113,7 @@ Once a game is over, update the pick's status. This is the preferred method — 
 **Mark a single pick as won:**
 ```bash
 curl -X PATCH https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/PICK_ID_HERE \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"status": "won"}'
 ```
@@ -121,7 +121,7 @@ curl -X PATCH https://believable-mindfulness-production-12eb.up.railway.app/api/
 **Mark a pick as lost:**
 ```bash
 curl -X PATCH https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/PICK_ID_HERE \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"status": "lost"}'
 ```
@@ -156,7 +156,7 @@ After picks are resolved (status changed from `pending` to `won`/`lost`/`push`),
 
 ```bash
 curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v1/creators/CREATOR_ID_HERE/record/recalculate \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo"
+  -H "Authorization: Bearer $ADMIN_API_KEY"
 ```
 
 ---
@@ -180,13 +180,13 @@ curl "https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks
 
 # 2. For each pick_id, resolve it
 curl -X PATCH https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/PICK_ID \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"status": "won"}'
 
 # 3. Recalculate the record
 curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v1/creators/CREATOR_ID_HERE/record/recalculate \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo"
+  -H "Authorization: Bearer $ADMIN_API_KEY"
 ```
 
 ---
@@ -206,11 +206,11 @@ curl -X POST https://believable-mindfulness-production-12eb.up.railway.app/api/v
 **Delete a pick:**
 ```bash
 curl -X DELETE https://believable-mindfulness-production-12eb.up.railway.app/api/v1/picks/PICK_ID_HERE \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo"
+  -H "Authorization: Bearer $ADMIN_API_KEY"
 ```
 
 **Delete a creator (and all their picks/records):**
 ```bash
 curl -X DELETE https://believable-mindfulness-production-12eb.up.railway.app/api/v1/creators/CREATOR_ID_HERE \
-  -H "Authorization: Bearer Bh6UnqBDMiPbD9YxSk8tx2yftYCmCsStWbUEYuwQzvo"
+  -H "Authorization: Bearer $ADMIN_API_KEY"
 ```
