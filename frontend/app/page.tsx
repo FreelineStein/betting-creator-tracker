@@ -14,7 +14,7 @@ import {
   sportLabel,
 } from "./lib/picks";
 import HomeBoard, { type BoxLine, type Division, type PickLite, type StandingsRow } from "./components/HomeBoard";
-import { SectionBar, Standfirst } from "../components/brand";
+import { Lede, SectionHead } from "../components/brand";
 
 const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Dr. Locks", "Harry Locks", "Gavin"];
 
@@ -45,10 +45,13 @@ function toRow(creator: Creator, record: CreatorRecord | null, picks: Pick[]): S
   const pushes = record?.pushes ?? 0;
   const total = record?.total_picks ?? picks.length;
   const settled = settledNewestFirst(picks);
-  const recent = [...activePicks(picks), ...recentSettled(picks, 2)].slice(0, 3).map(toLite);
+  const fresh = [...activePicks(picks), ...recentSettled(picks, 2)];
+  // Quiet stretch: fall back to the latest settled picks rather than an empty list.
+  const recent = (fresh.length > 0 ? fresh : settled).slice(0, 3).map(toLite);
   return {
     id: creator.creator_id,
     name: creator.display_name,
+    img: creator.profile_image_url ?? null,
     handles: creator.platforms,
     gp: wins + losses,
     wins,
@@ -132,8 +135,8 @@ export default async function Home() {
   }
 
   const divisions: Division[] = [
-    { id: "i", title: "Division I · Popular creators", rows: featured },
-    { id: "ii", title: "Division II · Lesser known", rows: lesserKnown },
+    { id: "i", title: "Division I", subtitle: "Popular creators", rows: featured },
+    { id: "ii", title: "Division II", subtitle: "Lesser known", rows: lesserKnown },
   ].filter((d) => d.rows.length > 0);
 
   const hasAnyCreators = divisions.length > 0;
@@ -141,21 +144,21 @@ export default async function Home() {
   return (
     <div>
       <section>
-        <h1 className="font-display text-[clamp(46px,8.4vw,108px)] font-bold uppercase leading-[0.9] tracking-[-0.015em] text-ink text-balance">
-          Every pick. Every loss. On the record.
+        <h1 className="font-display text-[clamp(40px,5.6vw,68px)] font-extrabold uppercase leading-[0.98] text-fg text-balance">
+          Every pick. Every loss. <span className="text-win">On the record.</span>
         </h1>
-        <Standfirst className="mt-5">
-          Creators&apos; publicly posted picks, settled against final scores and box scores. Find
+        <Lede className="mt-4">
+          Creators&apos; publicly posted picks, settled against final scores and box scores. See
           who is actually worth tailing before you tail.
-        </Standfirst>
+        </Lede>
       </section>
 
       {error && (
-        <div className="mt-10 border-y-2 border-ink py-4 text-[15px] text-ink-2">
-          <p className="font-semibold text-ink">Could not reach the record.</p>
+        <div className="mt-10 rounded-card border border-line bg-panel px-5 py-4 text-[15px] text-fg-2">
+          <p className="font-semibold text-fg">Could not reach the record.</p>
           <p>Try again in a minute.</p>
           {process.env.NODE_ENV === "development" && (
-            <p className="mt-2 text-[13px] text-ink-3">
+            <p className="mt-2 text-[13px] text-fg-3">
               Development: make sure the backend is running or NEXT_PUBLIC_API_URL points at it.
             </p>
           )}
@@ -163,9 +166,9 @@ export default async function Home() {
       )}
 
       {!error && !hasAnyCreators && (
-        <p className="mt-10 border-y-2 border-ink py-4 text-[15px] text-ink-2">
+        <p className="mt-10 rounded-card border border-line bg-panel px-5 py-4 text-[15px] text-fg-2">
           No creators on the record yet.{" "}
-          <Link href="/submit" className="rule-link font-semibold text-ink">
+          <Link href="/submit" className="u-link font-semibold text-win">
             Submit the first pick.
           </Link>
         </p>
@@ -174,37 +177,38 @@ export default async function Home() {
       {!error && hasAnyCreators && (
         <HomeBoard
           divisions={divisions}
-          settled={settledLines.slice(0, 14)}
-          settledLabel={settledIsRecent ? "Settled, last two days" : "Latest settled"}
-          onDeck={onDeckLines.slice(0, 14)}
+          settled={settledLines.slice(0, 12)}
+          settledLabel={settledIsRecent ? "Last two days" : "Latest settled"}
+          onDeck={onDeckLines.slice(0, 12)}
         />
       )}
 
       <section className="mt-20" aria-labelledby="how-heading">
-        <SectionBar>
-          <span id="how-heading">How the record is kept</span>
-        </SectionBar>
-        <div className="grid grid-cols-1 border-b border-ink sm:grid-cols-3 sm:divide-x sm:divide-rule">
+        <SectionHead id="how-heading">How the record is kept</SectionHead>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[
             {
-              head: "Capture.",
+              head: "Capture",
               body: "Picks come from creators' public posts on X. Anyone can submit a post; it is fetched live and the picks are read out of the text and images.",
             },
             {
-              head: "Settle.",
+              head: "Settle",
               body: "Once the game ends, every pick is checked against final scores and box scores: spreads, moneylines, totals, props, and parlays leg by leg.",
             },
             {
-              head: "Record.",
-              body: "Wins, losses and pushes add up to the standings. ROI is measured against the −110 break-even line, a 52.4% win rate.",
+              head: "Record",
+              body: "Wins, losses and pushes add up to the record. ROI is measured against the −110 break-even line, a 52.4% win rate.",
             },
-          ].map((step) => (
-            <p
-              key={step.head}
-              className="py-4 text-[15px] leading-[1.5] text-ink-2 sm:px-5 sm:first:pl-0 sm:last:pr-0"
-            >
-              <strong className="font-bold text-ink">{step.head}</strong> {step.body}
-            </p>
+          ].map((step, i) => (
+            <div key={step.head} className="rounded-card border border-line bg-panel px-5 py-5">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-win-dim font-display text-[14px] font-bold text-win">
+                  {i + 1}
+                </span>
+                <h3 className="font-display text-[19px] font-bold uppercase tracking-[0.02em] text-fg">{step.head}</h3>
+              </div>
+              <p className="mt-2.5 text-[15px] leading-[1.55] text-fg-2">{step.body}</p>
+            </div>
           ))}
         </div>
       </section>

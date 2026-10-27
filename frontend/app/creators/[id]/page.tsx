@@ -1,7 +1,17 @@
 import Link from "next/link";
 import { getCreator, getCreatorRecord, getCreatorPicks } from "../../lib/api";
 import type { Creator, Pick } from "../../lib/api";
-import { FormStrip, Pct, ResultMark, SectionBar } from "../../../components/brand";
+import {
+  Avatar,
+  FormChips,
+  Panel,
+  ResultChip,
+  SectionHead,
+  Stat,
+  pctText,
+  pctTone,
+  roiTone,
+} from "../../../components/brand";
 import {
   activePicks,
   computeStreak,
@@ -42,11 +52,11 @@ export default async function CreatorPage({ params }: Props) {
     ]);
   } catch {
     return (
-      <div className="border-y-2 border-ink py-4 text-[15px] text-ink-2">
-        <p className="font-semibold text-ink">Could not load this creator.</p>
+      <div className="rounded-card border border-line bg-panel px-5 py-4 text-[15px] text-fg-2">
+        <p className="font-semibold text-fg">Could not load this creator.</p>
         <p>
           Try again in a minute, or go back to the{" "}
-          <Link href="/" className="rule-link font-semibold text-ink">
+          <Link href="/" className="u-link font-semibold text-win">
             standings
           </Link>
           .
@@ -93,231 +103,174 @@ export default async function CreatorPage({ params }: Props) {
 
   return (
     <div>
-      <Link
-        href="/"
-        className="rule-link font-display text-[13px] font-medium uppercase tracking-[0.1em] text-ink"
-      >
-        Back to standings
+      <Link href="/" className="u-link inline-flex items-center gap-1.5 text-[14px] font-semibold text-fg-2 hover:text-fg">
+        <span aria-hidden="true">←</span> Standings
       </Link>
 
-      <header className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex items-end gap-5">
-          {creator.profile_image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={creator.profile_image_url}
-              alt=""
-              width={84}
-              height={84}
-              className="h-[72px] w-[72px] shrink-0 border-2 border-ink object-cover grayscale contrast-125 sm:h-[84px] sm:w-[84px]"
-            />
+      <header className="mt-6 flex items-center gap-4 sm:gap-5">
+        <Avatar src={creator.profile_image_url} name={creator.display_name} size={76} />
+        <div className="min-w-0">
+          <h1 className="font-display text-[clamp(34px,5vw,56px)] font-extrabold uppercase leading-[1.0] text-fg text-balance">
+            {creator.display_name}
+          </h1>
+          {meta.length > 0 && (
+            <p className="mt-1.5 text-[15px] text-fg-2">
+              {meta.map((m, i) => (
+                <span key={m.text}>
+                  {i > 0 && <span className="mx-1.5 text-fg-3">·</span>}
+                  {m.href ? (
+                    <a href={m.href} target="_blank" rel="noopener noreferrer" className="u-link font-semibold text-fg">
+                      {m.text}
+                    </a>
+                  ) : (
+                    m.text
+                  )}
+                </span>
+              ))}
+            </p>
           )}
-          <div className="min-w-0">
-            <h1 className="font-display text-[clamp(40px,7vw,80px)] font-bold uppercase leading-[0.9] tracking-[-0.015em] text-ink text-balance">
-              {creator.display_name}
-            </h1>
-            {meta.length > 0 && (
-              <p className="mt-2 text-[14px] text-ink-2">
-                {meta.map((m, i) => (
-                  <span key={m.text}>
-                    {i > 0 && <span className="mx-1.5 text-ink-3">·</span>}
-                    {m.href ? (
-                      <a
-                        href={m.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rule-link font-semibold text-ink"
-                      >
-                        {m.text}
-                      </a>
-                    ) : (
-                      m.text
-                    )}
-                  </span>
-                ))}
-              </p>
-            )}
-          </div>
         </div>
       </header>
 
       <section className="mt-8" aria-label="Record">
         {hasPicks ? (
-          <table className="agate">
-            <thead>
-              <tr>
-                <th className="num">GP</th>
-                <th className="num">W</th>
-                <th className="num">L</th>
-                <th className="num hidden sm:table-cell">P</th>
-                <th className="num">Pct</th>
-                <th className="num">ROI</th>
-                <th className="num">Strk</th>
-                <th className="hidden sm:table-cell">L5</th>
-                <th className="num hidden sm:table-cell">Picks</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="num font-display text-[30px] font-bold leading-none sm:text-[36px]">{gp}</td>
-                <td className="num font-display text-[30px] font-bold leading-none sm:text-[36px]">{record.wins}</td>
-                <td className="num font-display text-[30px] font-bold leading-none sm:text-[36px]">{record.losses}</td>
-                <td className="num hidden font-display text-[30px] font-bold leading-none text-ink-3 sm:table-cell sm:text-[36px]">
-                  {record.pushes}
-                </td>
-                <td className="num font-display text-[30px] leading-none sm:text-[36px]">
-                  <Pct value={pct} />
-                </td>
-                <td className="num font-display text-[30px] font-bold leading-none sm:text-[36px]">
-                  {roiText(record.roi)}
-                </td>
-                <td className="num font-display text-[30px] font-bold leading-none sm:text-[36px]">
-                  {streak ? `${streak.kind}${streak.count}` : "—"}
-                </td>
-                <td className="hidden sm:table-cell">
-                  <FormStrip results={last5} size={14} gap={4} className="block text-ink" />
-                </td>
-                <td className="num hidden font-display text-[30px] font-bold leading-none sm:table-cell sm:text-[36px]">
-                  {record.total_picks}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <Panel className="px-5 py-5 sm:px-6">
+            <div className="grid grid-cols-3 gap-x-4 gap-y-5 sm:grid-cols-6">
+              <Stat label="Record" size="lg">
+                {record.wins}-{record.losses}
+                {record.pushes > 0 && <span className="text-fg-3">-{record.pushes}</span>}
+              </Stat>
+              <Stat label="Win %" size="lg" tone={pctTone(pct)}>
+                {pctText(pct)}
+              </Stat>
+              <Stat label="ROI" size="lg" tone={roiTone(record.roi)}>
+                {roiText(record.roi)}
+              </Stat>
+              <Stat label="Streak" size="lg" tone={streak ? (streak.kind === "W" ? "win" : "loss") : "muted"}>
+                {streak ? `${streak.kind}${streak.count}` : "—"}
+              </Stat>
+              <Stat label="Picks" size="lg">
+                {record.total_picks}
+              </Stat>
+              <div>
+                <div className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-fg-3">Last 5</div>
+                <FormChips results={last5} size={28} className="mt-2" />
+              </div>
+            </div>
+          </Panel>
         ) : (
-          <p className="border-y-2 border-ink py-4 text-[15px] text-ink-2">
+          <Panel className="px-5 py-4 text-[15px] text-fg-2">
             Tracking started. The record fills in as picks are submitted and settled.
-          </p>
+          </Panel>
         )}
         {hasPicks && (
-          <p className="mt-2 text-[12px] text-ink-3">
-            Pct in bold clears the −110 break-even (52.4%). ROI is percentage points above that
-            line. Pushes are excluded from GP and Pct.
+          <p className="mt-2.5 text-[13px] text-fg-3">
+            Win % in green clears the −110 break-even (52.4%); pushes are left out of it. ROI is
+            percentage points above that line.
           </p>
         )}
       </section>
 
-      <div className="mt-12 lg:grid lg:grid-cols-12 lg:gap-x-10">
-        <div className="space-y-12 lg:col-span-8">
+      <div className="mt-12 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-x-8">
+        <div className="space-y-12">
           {pending.length > 0 && (
             <section aria-labelledby="ondeck-heading">
-              <SectionBar onDeck right="Settles about 15 minutes after the game ends">
-                <span id="ondeck-heading">On deck · {pending.length}</span>
-              </SectionBar>
-              <table className="agate">
-                <thead>
-                  <tr>
-                    <th>Game</th>
-                    <th>Pick</th>
-                    <th className="num">Odds</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <SectionHead id="ondeck-heading" count={pending.length} right="Settles about 15 minutes after the game">
+                On deck
+              </SectionHead>
+              <Panel className="px-[18px]">
+                <ul className="divide-y divide-line">
                   {pending.map((pick) => (
-                    <tr key={pick.pick_id}>
-                      <td className="w-[88px] whitespace-nowrap align-top text-[12px] text-ink-3">
+                    <li key={pick.pick_id} className="flex items-start gap-3 py-3.5">
+                      <span className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-win" aria-hidden="true" />
+                      <div className="min-w-0 flex-1">
+                        <PickCell pick={pick} />
+                      </div>
+                      <div className="shrink-0 text-right text-[12.5px] text-fg-3">
                         <div>{formatDateET(pick.event_date)}</div>
                         <div>{formatTimeET(pick.event_date)}</div>
-                      </td>
-                      <td className="align-top">
-                        <PickCell pick={pick} />
-                      </td>
-                      <td className="num w-[56px] align-top text-ink-3">{pick.odds}</td>
-                    </tr>
+                      </div>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              </Panel>
             </section>
           )}
 
           <section aria-labelledby="log-heading">
-            <SectionBar
+            <SectionHead
+              id="log-heading"
               right={
                 windowIsComplete
                   ? `${history.length} ${history.length === 1 ? "pick" : "picks"}`
-                  : `Last ${picks.length} of ${record.total_picks} picks`
+                  : `Last ${picks.length} of ${record.total_picks}`
               }
             >
-              <span id="log-heading">Game log</span>
-            </SectionBar>
+              Pick history
+            </SectionHead>
             {history.length === 0 ? (
-              <p className="border-b border-ink py-3 text-[13px] text-ink-3">No settled picks yet.</p>
+              <Panel className="px-5 py-4 text-[14px] text-fg-3">No settled picks yet.</Panel>
             ) : (
-              <table className="agate">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Pick</th>
-                    <th className="num hidden sm:table-cell">Odds</th>
-                    <th className="w-[52px]">Result</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Panel className="px-[18px]">
+                <ul className="divide-y divide-line">
                   {history.map((pick) => (
-                    <tr key={pick.pick_id}>
-                      <td className="w-[58px] whitespace-nowrap align-top text-[12px] text-ink-3 sm:w-[92px]">
-                        <span className="sm:hidden">{formatDateET(pick.event_date)}</span>
-                        <span className="hidden sm:inline">{formatDateET(pick.event_date, true)}</span>
-                      </td>
-                      <td className="align-top">
+                    <li key={pick.pick_id} className="flex items-start gap-3 py-3.5">
+                      {pick.status === "pending" ? (
+                        <span
+                          className="mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-chip border border-dashed border-line-2 text-[11px] font-bold text-fg-3"
+                          title="Unsettled"
+                        >
+                          ?
+                        </span>
+                      ) : (
+                        <ResultChip status={pick.status} className="mt-0.5" />
+                      )}
+                      <div className="min-w-0 flex-1">
                         <PickCell pick={pick} />
-                        {pick.odds && (
-                          <div className="text-[12px] text-ink-3 sm:hidden">{pick.odds}</div>
-                        )}
-                      </td>
-                      <td className="num hidden w-[56px] align-top text-ink-3 sm:table-cell">
-                        {pick.odds}
-                      </td>
-                      <td className="align-top">
-                        {pick.status === "pending" ? (
-                          <span className="text-[12px] uppercase tracking-[0.06em] text-ink-3">
-                            Unsettled
-                          </span>
-                        ) : (
-                          <ResultMark status={pick.status} />
-                        )}
-                      </td>
-                    </tr>
+                      </div>
+                      <div className="shrink-0 text-right text-[12.5px] text-fg-3">
+                        <div className="whitespace-nowrap">{formatDateET(pick.event_date, true)}</div>
+                        {pick.odds && <div className="tabular">{pick.odds}</div>}
+                      </div>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              </Panel>
             )}
           </section>
         </div>
 
-        <aside className="mt-12 lg:col-span-4 lg:mt-0">
+        <aside className="mt-12 lg:mt-0">
           {sports.length > 0 && (
             <section aria-labelledby="sport-heading">
-              <SectionBar>
-                <span id="sport-heading">By sport</span>
-              </SectionBar>
-              <table className="agate">
-                <thead>
-                  <tr>
-                    <th>Sport</th>
-                    <th className="num">W</th>
-                    <th className="num">L</th>
-                    <th className="num">Pct</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <SectionHead id="sport-heading">By sport</SectionHead>
+              <Panel className="px-[18px]">
+                <ul className="divide-y divide-line">
                   {sports.map(([sportKey, stats]) => {
                     const n = stats.wins + stats.losses;
                     const wr = n > 0 ? Math.round((stats.wins / n) * 1000) / 10 : null;
                     return (
-                      <tr key={sportKey}>
-                        <td className="font-semibold uppercase tracking-[0.04em]">
+                      <li key={sportKey} className="flex items-center justify-between gap-3 py-3">
+                        <span className="font-display text-[17px] font-bold uppercase tracking-[0.03em] text-fg">
                           {sportLabel({ sport: sportKey, league: null })}
-                        </td>
-                        <td className="num">{stats.wins}</td>
-                        <td className="num">{stats.losses}</td>
-                        <td className="num">
-                          <Pct value={wr} />
-                        </td>
-                      </tr>
+                        </span>
+                        <span className="tabular flex items-baseline gap-4 text-[15px]">
+                          <span className="text-fg-2">
+                            {stats.wins}-{stats.losses}
+                          </span>
+                          <span
+                            className={`w-[54px] text-right font-display text-[18px] font-bold ${
+                              pctTone(wr) === "win" ? "text-win" : pctTone(wr) === "muted" ? "text-fg-3" : "text-fg"
+                            }`}
+                          >
+                            {pctText(wr)}
+                          </span>
+                        </span>
+                      </li>
                     );
                   })}
-                </tbody>
-              </table>
+                </ul>
+              </Panel>
             </section>
           )}
         </aside>
@@ -333,20 +286,18 @@ function PickCell({ pick }: { pick: Pick }) {
   const sport = sportLabel(pick);
   return (
     <div>
-      <div className="text-[14px] leading-snug">
-        <span className="mr-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">
-          {sport}
-        </span>
-        <span className="font-semibold text-ink">{formatPickDetail(pick.pick_type, detail)}</span>
-        {pick.event && <span className="text-ink-3"> · {pick.event}</span>}
+      <div className="text-[15.5px] font-semibold leading-snug text-fg">{formatPickDetail(pick.pick_type, detail)}</div>
+      <div className="text-[13px] text-fg-3">
+        {sport}
+        {pick.event && ` · ${pick.event}`}
       </div>
       {legs.length > 0 && (
-        <ul className="mt-1.5 space-y-0.5 border-l border-ink pl-2.5 text-[13px] text-ink-2">
+        <ul className="mt-1.5 space-y-1 border-l border-line-2 pl-2.5 text-[13.5px] text-fg-2">
           {legs.map((leg, j) => (
             <li key={j} className="flex flex-wrap items-center gap-x-1.5">
-              {leg.result && <ResultMark status={leg.result} size={13} />}
+              {leg.result && <ResultChip status={leg.result} size={16} />}
               <span>{legText(leg)}</span>
-              {leg.event && <span className="text-ink-3">· {leg.event}</span>}
+              {leg.event && <span className="text-fg-3">· {leg.event}</span>}
             </li>
           ))}
         </ul>

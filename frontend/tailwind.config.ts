@@ -8,33 +8,41 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // PickReceipts — The Agate Page.
-        // Newsprint ground, ink, one press red. W/L is carried by filled vs
-        // hollow marks and by the letter itself, never by color.
-        news: {
-          DEFAULT: "#E7E4DC",
-          2: "#F0EEE8",
-          3: "#DAD6CC",
+        // PickReceipts — the receipt logo's palette on a near-black app shell.
+        // Lime is the logo's check, orange its cross. W/L always carries its
+        // letter as well as its color.
+        ground: "#0C0F0D",
+        panel: {
+          DEFAULT: "#151A17",
+          2: "#1C221E",
+          3: "#232A25",
         },
-        ink: {
-          DEFAULT: "#121212",
-          2: "#3A3835",
-          3: "#625F59",
+        line: {
+          DEFAULT: "#262D28",
+          2: "#3A443D",
         },
-        rule: {
-          DEFAULT: "#B5B1A7",
+        fg: {
+          DEFAULT: "#EEF1EC",
+          2: "#A9B0A6",
+          3: "#848C81",
         },
-        press: {
-          DEFAULT: "#C8102E",
-          dim: "rgba(200, 16, 46, 0.10)",
+        win: {
+          DEFAULT: "#A8F55C",
+          dim: "rgba(168, 245, 92, 0.14)",
+        },
+        loss: {
+          DEFAULT: "#FF6A3D",
+          dim: "rgba(255, 106, 61, 0.15)",
         },
       },
       fontFamily: {
-        display: ["var(--font-oswald)", "Oswald", "Arial Narrow", "sans-serif"],
-        sans: ["var(--font-archivo)", "Archivo Narrow", "Arial Narrow", "sans-serif"],
+        display: ["var(--font-barlow-condensed)", "Barlow Condensed", "Arial Narrow", "sans-serif"],
+        sans: ["var(--font-barlow)", "Barlow", "Arial", "sans-serif"],
       },
-      transitionDuration: {
-        120: "120ms",
+      borderRadius: {
+        chip: "7px",
+        control: "10px",
+        card: "14px",
       },
     },
   },

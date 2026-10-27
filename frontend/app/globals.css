@@ -3,32 +3,31 @@
 @tailwind utilities;
 
 :root {
-  /* PickReceipts — The Agate Page. Light only: newsprint is read under daylight. */
-  --news: #e7e4dc;
-  --news-2: #f0eee8;
-  --news-3: #dad6cc;
+  /* PickReceipts — dark app shell in the receipt logo's palette. Dark only:
+     the visitor arrives from X on a phone, usually at night around games. */
+  --ground: #0c0f0d;
+  --panel: #151a17;
+  --panel-2: #1c221e;
+  --line: #262d28;
+  --line-2: #3a443d;
+  --fg: #eef1ec;
+  --fg-2: #a9b0a6;
+  --fg-3: #848c81;
+  --win: #a8f55c;
+  --loss: #ff6a3d;
 
-  --ink: #121212;
-  --ink-2: #3a3835;
-  --ink-3: #625f59;
-
-  --rule: #b5b1a7;
-  --press: #c8102e;
-
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html {
-  background: var(--news);
+  background: var(--ground);
 }
 
 body {
-  /* Newsprint grain tiles under the content as the page's own background. */
-  background-color: var(--news);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.07 0 0 0 0 0.07 0 0 0 0 0.07 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-  color: var(--ink);
-  font-family: var(--font-archivo), "Arial Narrow", sans-serif;
-  font-size: 15px;
+  background: var(--ground);
+  color: var(--fg);
+  font-family: var(--font-barlow), Barlow, Arial, sans-serif;
+  font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -36,20 +35,20 @@ body {
 
 /* Browser surfaces carry the design too. */
 ::selection {
-  background: var(--ink);
-  color: var(--news);
+  background: var(--win);
+  color: #000;
 }
 input,
 textarea {
-  caret-color: var(--press);
+  caret-color: var(--win);
 }
 :focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--win);
   outline-offset: 2px;
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--ink-3) transparent;
+  scrollbar-color: var(--line-2) transparent;
 }
 
 .tabular {
@@ -57,114 +56,24 @@ textarea {
   font-feature-settings: "tnum" 1;
 }
 
-/* Agate table: heavy rule on top, hairlines between rows, a rule to close. */
-.agate {
-  width: 100%;
-  border-collapse: collapse;
-  border-top: 2px solid var(--ink);
-  border-bottom: 1px solid var(--ink);
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
+/* Link underline that settles in on hover/focus. */
+.u-link {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms ease-out;
 }
-.agate th {
-  padding: 7px 8px 5px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-align: left;
-  color: var(--ink);
-  border-bottom: 1px solid var(--ink);
-  white-space: nowrap;
-}
-.agate td {
-  padding: 9px 8px;
-  font-size: 14px;
-  line-height: 1.3;
-  vertical-align: middle;
-  border-bottom: 1px solid var(--rule);
-}
-.agate tbody tr:last-child > td {
-  border-bottom: 0;
-}
-.agate th:first-child,
-.agate td:first-child {
-  padding-left: 4px;
-}
-.agate th:last-child,
-.agate td:last-child {
-  padding-right: 4px;
-}
-.agate .num {
-  text-align: right;
-  white-space: nowrap;
-}
-.agate tr.is-link {
-  cursor: pointer;
-}
-.agate tr.is-link:hover > td {
-  background: var(--news-3);
-}
-.agate tr.is-open > td {
-  background: var(--news-3);
-  border-bottom-color: var(--news-3);
-}
-
-/* Link with a 2px rule that draws in from the left on hover/focus. */
-.rule-link {
-  background-image: linear-gradient(currentColor, currentColor);
-  background-repeat: no-repeat;
-  background-size: 0% 2px;
-  background-position: 0 100%;
-  padding-bottom: 1px;
-  transition: background-size 120ms ease-out;
-}
-.rule-link:hover,
-.rule-link:focus-visible {
-  background-size: 100% 2px;
-}
-.rule-link.is-on {
-  background-size: 100% 2px;
-}
-
-/* Section head: reversed bar. */
-.bar {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--ink);
-  color: var(--news);
-  padding: 5px 10px 4px;
-  font-family: var(--font-oswald), "Arial Narrow", sans-serif;
-  font-weight: 500;
-  font-size: 15px;
-  line-height: 1.2;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.bar small {
-  font-family: var(--font-archivo), "Arial Narrow", sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--news-3);
-}
-
-/* Pending marker: a small press-red square. Red is reserved for this, the
-   section tab and the dateline. */
-.on-deck::before {
-  content: "";
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  background: var(--press);
-  margin-right: 6px;
-  vertical-align: 1px;
+.u-link:hover,
+.u-link:focus-visible,
+.u-link.is-on {
+  text-decoration-color: currentColor;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rule-link {
-    transition: none;
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
   }
 }

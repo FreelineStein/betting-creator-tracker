@@ -3,7 +3,7 @@
 import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
 import { usePostHog } from "posthog-js/react";
-import { Button, BoxedLink, SectionBar } from "../../components/brand";
+import { Button, ButtonLink, Panel, SectionHead } from "../../components/brand";
 import { formatPickDetail, legText, parlayLegs, sportLabel } from "../lib/picks";
 import {
   flagSubmission,
@@ -75,7 +75,7 @@ export default function SubmitForm({ turnstileSiteKey }: { turnstileSiteKey: str
 
     turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
       sitekey: turnstileSiteKey,
-      theme: "light",
+      theme: "dark",
       callback: (token) => {
         turnstileTokenRef.current = token;
       },
@@ -209,7 +209,7 @@ export default function SubmitForm({ turnstileSiteKey }: { turnstileSiteKey: str
         </div>
 
         <label htmlFor="tweet-url" className="block">
-          <span className="block font-display text-[13px] font-medium uppercase tracking-[0.1em] text-ink">
+          <span className="block text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-2">
             Post URL
           </span>
           <input
@@ -226,12 +226,12 @@ export default function SubmitForm({ turnstileSiteKey }: { turnstileSiteKey: str
             disabled={submitting}
             aria-invalid={Boolean(urlError)}
             aria-describedby={urlError ? "tweet-url-error" : undefined}
-            className={`mt-2 w-full border-2 bg-news-2 px-3.5 py-3 text-[16px] text-ink placeholder:text-ink-3 transition-colors duration-120 focus:outline-none focus-visible:outline-none focus:shadow-[0_0_0_2px_var(--ink)] disabled:opacity-50 ${
-              urlError ? "border-press" : "border-ink"
+            className={`mt-2 h-[52px] w-full rounded-control border bg-ground px-4 text-[16px] font-medium text-fg placeholder:text-fg-3 transition-colors duration-150 focus:outline-none focus-visible:outline-none disabled:opacity-50 ${
+              urlError ? "border-loss" : "border-line-2 focus:border-win"
             }`}
           />
           {urlError && (
-            <p id="tweet-url-error" className="mt-2 text-[13px] font-semibold text-press">
+            <p id="tweet-url-error" className="mt-2 text-[13px] font-semibold text-loss">
               {urlError}
             </p>
           )}
@@ -240,12 +240,12 @@ export default function SubmitForm({ turnstileSiteKey }: { turnstileSiteKey: str
         <div className="mt-6">
           <div ref={turnstileContainerRef} />
           {!turnstileReady && !turnstileLoadFailed && (
-            <p className="text-[12px] uppercase tracking-[0.08em] text-ink-3">
+            <p className="text-[13px] text-fg-3">
               Loading verification…
             </p>
           )}
           {turnstileLoadFailed && !turnstileReady && (
-            <p className="text-[13px] text-press">
+            <p className="text-[13px] text-loss">
               Couldn&apos;t load verification (Cloudflare Turnstile may be blocked by an ad-blocker
               or your network). Refresh the page to try again.
             </p>
@@ -253,13 +253,13 @@ export default function SubmitForm({ turnstileSiteKey }: { turnstileSiteKey: str
         </div>
 
         {formError && (
-          <div role="alert" className="mt-6 border-l-0 border-y-2 border-press py-2.5 text-[14px] font-semibold text-press">
+          <div role="alert" className="mt-6 rounded-control border border-loss/40 bg-loss-dim px-4 py-3 text-[14px] font-semibold text-loss">
             {formError}
           </div>
         )}
 
         <Button type="submit" variant="primary" disabled={submitting} className="mt-6 w-full sm:w-auto">
-          {submitting ? "Filing…" : "Put it on the record"}
+          {submitting ? "Checking the post…" : "Put it on the record"}
         </Button>
       </form>
     </>
@@ -310,16 +310,21 @@ function SuccessPanel({
 
   return (
     <section aria-labelledby="submit-result-heading">
-      <SectionBar onDeck={isNeedsReview}>
+      <span
+        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12.5px] font-bold uppercase tracking-[0.06em] ${
+          isNeedsReview ? "bg-panel-3 text-fg-2" : "bg-win-dim text-win"
+        }`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${isNeedsReview ? "bg-fg-3" : "bg-win"}`} aria-hidden="true" />
         <span id="submit-result-heading">{heading}</span>
-      </SectionBar>
+      </span>
 
-      <h2 className="mt-4 font-display text-[28px] font-bold uppercase leading-[0.95] tracking-[-0.01em] text-ink sm:text-[36px]">
+      <h2 className="mt-4 font-display text-[28px] font-bold uppercase leading-[1.05] text-fg sm:text-[34px]">
         {result.message}
       </h2>
 
       {isNeedsReview && (
-        <p className="mt-3 max-w-[60ch] text-[15px] leading-relaxed text-ink-2">
+        <p className="mt-3 max-w-[60ch] text-[15px] leading-relaxed text-fg-2">
           We only log picks we can match to a specific scheduled game so the outcome can be settled
           fairly. This one didn&apos;t match cleanly. A human will take a look and decide whether to
           add it to the record.
@@ -327,15 +332,15 @@ function SuccessPanel({
       )}
 
       {result.creator && (
-        <div className="mt-5 border-t border-ink pt-3 text-[15px] text-ink-2">
-          <span className="text-ink-3">Creator </span>
-          <span className="font-semibold text-ink">{result.creator.display_name}</span>{" "}
-          <span className="text-ink-3">{result.creator.handle}</span>
+        <div className="mt-5 text-[15px] text-fg-2">
+          <span className="text-fg-3">Creator </span>
+          <span className="font-semibold text-fg">{result.creator.display_name}</span>{" "}
+          <span className="text-fg-3">{result.creator.handle}</span>
           {result.creator.was_new && (
-            <p className="mt-2 text-[14px]">
-              <span className="font-semibold text-ink">{result.creator.display_name}</span> is new
+            <p className="mt-1.5 text-[14px]">
+              <span className="font-semibold text-fg">{result.creator.display_name}</span> is new
               to PickReceipts. They appear in{" "}
-              <span className="font-semibold text-ink">Division II</span> until they build a track
+              <span className="font-semibold text-fg">Division II</span> until they build a track
               record.
             </p>
           )}
@@ -370,23 +375,23 @@ function SuccessPanel({
           Source on file (source_id present) — the parser found at least
           something and we want the user to call out mistakes. */}
       {result.source_id && (
-        <div className="mt-6 border-t border-ink pt-3 text-[14px]">
+        <div className="mt-6 text-[14px]">
           {flagState.kind === "flagged" ? (
-            <p className="text-ink-2">Thanks. We&apos;ll take a look and clean it up.</p>
+            <p className="text-fg-2">Thanks. We&apos;ll take a look and clean it up.</p>
           ) : (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-fg-2">
               <span>Picks don&apos;t look right?</span>
               <button
                 type="button"
                 onClick={onFlag}
                 disabled={flagState.kind === "flagging"}
-                className="rule-link is-on font-semibold text-ink disabled:opacity-50"
+                className="u-link is-on font-semibold text-fg disabled:opacity-50"
               >
                 {flagState.kind === "flagging" ? "Flagging…" : "Flag for manual review"}
               </button>
               <span>and we&apos;ll clean it up.</span>
               {flagState.kind === "error" && (
-                <span className="mt-1 basis-full text-[13px] font-semibold text-press">
+                <span className="mt-1 basis-full text-[13px] font-semibold text-loss">
                   {flagState.message}
                 </span>
               )}
@@ -399,9 +404,9 @@ function SuccessPanel({
         <Button variant="primary" onClick={onSubmitAnother}>
           Submit another
         </Button>
-        <BoxedLink href="/" variant="secondary">
+        <ButtonLink href="/" variant="secondary">
           Back to standings
-        </BoxedLink>
+        </ButtonLink>
       </div>
     </section>
   );
@@ -416,40 +421,35 @@ function PickList({
 }) {
   return (
     <div className="mt-6">
-      <table className="agate">
-        <thead>
-          <tr>
-            <th className="w-[56px]">Sport</th>
-            <th>{title}</th>
-          </tr>
-        </thead>
-        <tbody>
+      <SectionHead count={items.length}>{title}</SectionHead>
+      <Panel className="px-[18px]">
+        <ul className="divide-y divide-line">
           {items.map((p, i) => (
-            <tr key={i}>
-              <td className="align-top text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+            <li key={i} className="flex items-start gap-3 py-3">
+              <span className="mt-0.5 w-[44px] shrink-0 text-[12px] font-bold uppercase tracking-[0.05em] text-fg-3">
                 {p.sport}
-              </td>
-              <td className="align-top">
-                <div className="text-[14px] font-semibold text-ink">{p.title}</div>
-                <div className="text-[12px] text-ink-3">{p.meta}</div>
+              </span>
+              <div className="min-w-0">
+                <div className="text-[15px] font-semibold text-fg">{p.title}</div>
+                <div className="text-[12.5px] text-fg-3">{p.meta}</div>
                 {p.legs.length > 0 && (
-                  <ol className="mt-1.5 space-y-0.5 border-l border-ink pl-2.5 text-[13px] text-ink-2">
+                  <ol className="mt-1.5 space-y-1 border-l border-line-2 pl-2.5 text-[13px] text-fg-2">
                     {p.legs.map((leg, j) => (
                       <li key={j}>
-                        <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+                        <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
                           {sportLabel({ sport: leg.sport ?? null, league: leg.league ?? null })}
                         </span>
-                        <span className="font-medium text-ink">{legText(leg)}</span>
-                        {leg.event && <span className="text-ink-3"> · {leg.event}</span>}
+                        <span className="font-medium text-fg">{legText(leg)}</span>
+                        {leg.event && <span className="text-fg-3"> · {leg.event}</span>}
                       </li>
                     ))}
                   </ol>
                 )}
-              </td>
-            </tr>
+              </div>
+            </li>
           ))}
-        </tbody>
-      </table>
+        </ul>
+      </Panel>
     </div>
   );
 }
