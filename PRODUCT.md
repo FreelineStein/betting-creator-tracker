@@ -49,11 +49,11 @@ The only record that is built from the creator's own public posts and settled ag
 - Name: PickReceipts (one word, capital P and R). Domain pickreceipts.com.
 - Voice (from the March 2026 brand guide, still current): transparent, direct, accountable. Short sentences, concrete numbers, no editorializing. Established lines: "Every pick. Every loss. On the record." / "They said it was a lock. We kept the receipt." / "Real records. No excuses. No exceptions."
 - Legal/footer copy that must survive: "Picks sourced from public social media posts." and "For entertainment and transparency purposes only. Not financial advice."
-- Visual world: free hand, confirmed 2026-10-26. Neither the March brand guide palette (black, signal green, alert orange, Barlow Condensed) nor the May 2026 "Stadium Card" palette (warm paper, amber, cobalt, Manrope) is binding. The green receipt logo PNG is an available asset, not a requirement.
+- Visual world: the dark app shell chosen 2026-10-27 (see DESIGN.md), in the logo's palette: near-black ground, lime for wins, orange for losses, Barlow / Barlow Condensed. The May 2026 "Stadium Card" look and the October 2026 "Agate Page" newsprint look are both rejected anti-references.
 
 ## Evidence on Hand
 
-- Real logo asset: `frontend/public/brand-mark.png` (white receipt icon with green check / orange cross line items and "PICK RECEIPTS" wordmark; transparent background, designed for dark grounds). Same file as `favicon.png`.
+- Real logo asset: `frontend/public/logo.png` (receipt icon with lime check / orange cross line items beside the stacked PICK / RECEIPTS wordmark, cut out to a transparent background for dark grounds; supplied by Jacob 2026-10-27 and pinned as the site logo). `logo-mark.png`, `favicon.png` and `app/icon.png` are the receipt mark alone. `brand-mark.png` is the superseded March 2026 version.
 - Prior brand guide: `~/Downloads/pickreceipts_brand_guide.html` (March 2026, v1.0). Historical reference only.
 - Prior design handoff for the May look: `handoffs/design_handoff_creator_card/` with screenshots. Anti-reference for this redesign.
 - Live data at the production API (see repo CLAUDE.md) with real creators and real settled picks; no need to invent fixture data for screenshots.

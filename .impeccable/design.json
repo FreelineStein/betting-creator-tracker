@@ -4,89 +4,42 @@
   "title": "Design System: PickReceipts",
   "extensions": {
     "colorMeta": {
-      "press": {
-        "role": "primary",
-        "displayName": "Press Red",
-        "canonical": "#C8102E",
-        "tonalRamp": ["#2a0208", "#4d0410", "#73061a", "#9a0b23", "#C8102E", "#e0536a", "#efa0ad", "#faE3e8"]
-      },
-      "news": {
-        "role": "neutral",
-        "displayName": "Newsprint",
-        "canonical": "#E7E4DC",
-        "tonalRamp": ["#262520", "#3f3d36", "#5b5950", "#7b786e", "#9b978c", "#bdb9ae", "#DAD6CC", "#E7E4DC"]
-      },
-      "news-2": {
-        "role": "neutral",
-        "displayName": "Newsprint Light",
-        "canonical": "#F0EEE8",
-        "tonalRamp": ["#292823", "#434139", "#605d53", "#817d72", "#a19d91", "#c3bfb3", "#e2dfd7", "#F0EEE8"]
-      },
-      "news-3": {
-        "role": "neutral",
-        "displayName": "Newsprint Shade",
-        "canonical": "#DAD6CC",
-        "tonalRamp": ["#242320", "#3b3a34", "#56544c", "#75726a", "#948f85", "#b4b0a5", "#DAD6CC", "#eeebe4"]
-      },
-      "ink": {
-        "role": "neutral",
-        "displayName": "Ink",
-        "canonical": "#121212",
-        "tonalRamp": ["#121212", "#2b2b2b", "#454545", "#616161", "#7e7e7e", "#9d9d9d", "#bdbdbd", "#ededed"]
-      },
-      "ink-2": {
-        "role": "neutral",
-        "displayName": "Ink Soft",
-        "canonical": "#3A3835",
-        "tonalRamp": ["#171615", "#3A3835", "#55524e", "#716e69", "#8e8b85", "#aca9a2", "#cbc8c1", "#ebe9e4"]
-      },
-      "ink-3": {
-        "role": "neutral",
-        "displayName": "Ink Faint",
-        "canonical": "#625F59",
-        "tonalRamp": ["#1c1b19", "#33312e", "#4a4844", "#625F59", "#807d76", "#a09d95", "#c2bfb7", "#e6e4df"]
-      },
-      "rule": {
-        "role": "neutral",
-        "displayName": "Rule",
-        "canonical": "#B5B1A7",
-        "tonalRamp": ["#22211e", "#3a3935", "#54534d", "#706e67", "#8d8a82", "#B5B1A7", "#d2cfc7", "#ece9e3"]
-      }
+      "win": { "role": "primary", "displayName": "Receipt Lime", "canonical": "#A8F55C", "tonalRamp": ["#1a2a0c", "#2d4a14", "#45701f", "#5f9a2b", "#7fc63c", "#A8F55C", "#cbf99d", "#eafdd8"] },
+      "win-bright": { "role": "primary", "displayName": "Lime Flare", "canonical": "#BDFA7E", "tonalRamp": ["#1f300f", "#36551b", "#527d28", "#70a636", "#93d147", "#BDFA7E", "#d8fcb2", "#f0fee3"] },
+      "win-dim": { "role": "primary", "displayName": "Lime Wash", "canonical": "rgba(168, 245, 92, 0.14)" },
+      "loss": { "role": "secondary", "displayName": "Cross Orange", "canonical": "#FF6A3D", "tonalRamp": ["#2e0f05", "#561c0a", "#842b10", "#b33a16", "#e0491c", "#FF6A3D", "#ffa98f", "#ffe3da"] },
+      "loss-dim": { "role": "secondary", "displayName": "Orange Wash", "canonical": "rgba(255, 106, 61, 0.15)" },
+      "ground": { "role": "neutral", "displayName": "Ground", "canonical": "#0C0F0D", "tonalRamp": ["#0C0F0D", "#151A17", "#1C221E", "#232A25", "#3A443D", "#5f6a61", "#848C81", "#EEF1EC"] },
+      "panel": { "role": "neutral", "displayName": "Panel", "canonical": "#151A17" },
+      "panel-2": { "role": "neutral", "displayName": "Raised Panel", "canonical": "#1C221E" },
+      "panel-3": { "role": "neutral", "displayName": "Top Panel", "canonical": "#232A25" },
+      "line": { "role": "neutral", "displayName": "Hairline", "canonical": "#262D28" },
+      "line-2": { "role": "neutral", "displayName": "Strong Hairline", "canonical": "#3A443D" },
+      "fg": { "role": "neutral", "displayName": "Chalk", "canonical": "#EEF1EC" },
+      "fg-2": { "role": "neutral", "displayName": "Dim Chalk", "canonical": "#A9B0A6" },
+      "fg-3": { "role": "neutral", "displayName": "Faint Chalk", "canonical": "#848C81" }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Homepage banner headline only; Oswald 700 uppercase, text-balanced across the full column." },
-      "headline": { "displayName": "Headline", "purpose": "Page h1 on the creator and submit pages." },
-      "figure": { "displayName": "Figure", "purpose": "The creator record row (GP, W, L, P, PCT, ROI, STRK, PICKS); 30px below sm, 36px from sm." },
-      "title": { "displayName": "Section Bar", "purpose": "Text of the reversed ink bar heading every table or block." },
-      "standfirst": { "displayName": "Standfirst", "purpose": "The one-line deck under a headline, Ink Soft, max 62ch." },
-      "body": { "displayName": "Body", "purpose": "Base body copy, empty states, the three steps." },
-      "agate": { "displayName": "Agate", "purpose": "Default table cell; tabular numerals." },
-      "line": { "displayName": "Line", "purpose": "Box-score lines, recent picks, parlay legs, notes." },
-      "meta": { "displayName": "Meta", "purpose": "Dates, handles, odds, events, footnotes, footer." },
-      "label": { "displayName": "Label", "purpose": "Table column heads, bar captions, dateline strip, sport tags." },
-      "control": { "displayName": "Control", "purpose": "Button and boxed-link text." }
+      "display": { "displayName": "Display", "purpose": "The one page headline, uppercase, balanced; a trailing clause may turn lime." },
+      "headline": { "displayName": "Section Head", "purpose": "Division, Box scores, On deck heads, uppercase, with optional count and right caption." },
+      "stat": { "displayName": "Stat", "purpose": "Record / Win % / ROI on creator cards, tabular figures." },
+      "stat-lg": { "displayName": "Stat Large", "purpose": "Creator header stats; 30px on phones, 38px from 640px." },
+      "title": { "displayName": "Title", "purpose": "Creator names on cards." },
+      "lede": { "displayName": "Lede", "purpose": "One line under a headline, max 58ch, Dim Chalk." },
+      "body": { "displayName": "Body", "purpose": "Base reading text." },
+      "label": { "displayName": "Label", "purpose": "Uppercase stat labels, field labels, pills, in Faint Chalk." }
     },
-    "shadows": [
-      { "name": "focus-rule", "value": "0 3px 0 0 var(--ink)", "purpose": "FIND field focus: thickens the bottom rule to 3px. Not elevation." },
-      { "name": "focus-ring", "value": "0 0 0 2px var(--ink)", "purpose": "URL field focus: hard 2px ink outline. Not elevation." }
-    ],
+    "shadows": [],
     "motion": [
-      { "name": "duration-120", "value": "120ms", "purpose": "The only transition duration: rule-draw underline and boxed-control color swap." },
-      { "name": "ease-rule-draw", "value": "ease-out", "purpose": "Easing for the .rule-link background-size draw; disabled under prefers-reduced-motion." }
+      { "name": "color-150", "value": "150ms ease (transition-colors)", "purpose": "Card, button, border and field-focus state changes." },
+      { "name": "underline-settle", "value": "text-decoration-color 150ms ease-out", "purpose": "Link underline fading in on hover/focus." },
+      { "name": "chevron-flip", "value": "transform 150ms", "purpose": "Expand chevron rotating 180deg when a creator card opens." },
+      { "name": "reduced-motion", "value": "transition: none !important", "purpose": "All transitions off under prefers-reduced-motion." }
     ],
     "breakpoints": [
       { "name": "sm", "value": "640px" },
       { "name": "md", "value": "768px" },
       { "name": "lg", "value": "1024px" }
-    ],
-    "texture": {
-      "name": "newsprint-grain",
-      "value": "inline SVG feTurbulence fractalNoise baseFrequency 0.95, 2 octaves, 180px tile, ink at ~9% alpha, on body only"
-    },
-    "openCeiling": [
-      "A vertical column rule between the standings (8 col) and the aside (4 col) at lg and up.",
-      "A visible break-even reference in the PCT column itself; today the 52.4% line is carried only by bold weight, a title attribute and the footnote.",
-      "The /submit page leaves the right half of the content column empty at desktop widths (single 42rem column)."
     ]
   },
   "components": [
@@ -94,129 +47,95 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Classified-ad box, ink fill. The submit and 'Submit another' actions.",
-      "html": "<button class=\"ds-btn-primary\">Put it on the record</button>",
-      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 2px solid var(--ink, #121212); background: var(--ink, #121212); color: var(--news, #E7E4DC); padding: 9px 16px; font-family: Oswald, 'Arial Narrow', sans-serif; font-size: 14px; font-weight: 500; line-height: 1; letter-spacing: 0.07em; text-transform: uppercase; border-radius: 0; cursor: pointer; transition: background-color 120ms, border-color 120ms, color 120ms; } .ds-btn-primary:hover { background: var(--ink-2, #3A3835); border-color: var(--ink-2, #3A3835); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ink, #121212); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }"
+      "description": "The single main action per view: Submit a pick, Submit another.",
+      "html": "<button class=\"ds-btn-primary\">Submit a pick</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--win, #A8F55C); color: #000; border: none; border-radius: 10px; padding: 10px 18px; font-family: Barlow, Arial, sans-serif; font-size: 15px; font-weight: 700; line-height: 1.25; cursor: pointer; transition: background-color 150ms; } .ds-btn-primary:hover { background: #BDFA7E; } .ds-btn-primary:focus-visible { outline: 2px solid var(--win, #A8F55C); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }"
     },
     {
-      "name": "Secondary Button / Boxed Link",
+      "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Transparent classified-ad box that reverses to ink on hover. 'Back to standings', masthead 'Submit a pick'.",
-      "html": "<a class=\"ds-btn-secondary\" href=\"#\">Back to standings</a>",
-      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 2px solid var(--ink, #121212); background: transparent; color: var(--ink, #121212); padding: 9px 16px; font-family: Oswald, 'Arial Narrow', sans-serif; font-size: 14px; font-weight: 500; line-height: 1; letter-spacing: 0.07em; text-transform: uppercase; text-decoration: none; border-radius: 0; cursor: pointer; transition: background-color 120ms, color 120ms; } .ds-btn-secondary:hover { background: var(--ink, #121212); color: var(--news, #E7E4DC); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--ink, #121212); outline-offset: 2px; }"
+      "description": "Quiet companion action: Back to standings.",
+      "html": "<button class=\"ds-btn-secondary\">Back to standings</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--panel, #151A17); color: var(--fg, #EEF1EC); border: 1px solid var(--line-2, #3A443D); border-radius: 10px; padding: 10px 18px; font-family: Barlow, Arial, sans-serif; font-size: 15px; font-weight: 700; line-height: 1.25; cursor: pointer; transition: background-color 150ms, border-color 150ms; } .ds-btn-secondary:hover { background: var(--panel-2, #1C221E); border-color: var(--fg-3, #848C81); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--win, #A8F55C); outline-offset: 2px; }"
     },
     {
-      "name": "Section Bar",
-      "kind": "nav",
-      "refersTo": "section-bar",
-      "description": "Reversed ink band heading a table, with optional right caption and the on-deck red marker.",
-      "html": "<div class=\"ds-bar\"><span class=\"ds-bar-ondeck\">On deck</span><small>Pending, today onward</small></div>",
-      "css": ".ds-bar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; background: var(--ink, #121212); color: var(--news, #E7E4DC); padding: 5px 10px 4px; font-family: Oswald, 'Arial Narrow', sans-serif; font-weight: 500; font-size: 15px; line-height: 1.2; letter-spacing: 0.06em; text-transform: uppercase; } .ds-bar small { font-family: 'Archivo Narrow', 'Arial Narrow', sans-serif; font-size: 11px; letter-spacing: 0.08em; color: var(--news-3, #DAD6CC); } .ds-bar-ondeck::before { content: ''; display: inline-block; width: 7px; height: 7px; background: var(--press, #C8102E); margin-right: 6px; vertical-align: 1px; }"
-    },
-    {
-      "name": "Agate Table",
-      "kind": "custom",
-      "refersTo": "agate",
-      "description": "Standings table: 2px ink head rule, hairline rows, tabular numerals, hover and open row states.",
-      "html": "<table class=\"ds-agate\"><thead><tr><th class=\"ds-num\">#</th><th>Creator</th><th class=\"ds-num\">W</th><th class=\"ds-num\">L</th><th class=\"ds-num\">Pct</th><th class=\"ds-num\">Strk</th></tr></thead><tbody><tr class=\"ds-is-link\"><td class=\"ds-num ds-faint\">1</td><td><span class=\"ds-name\">Trent</span><div class=\"ds-handle\">@BookitWithTrent</div></td><td class=\"ds-num ds-semi\">29</td><td class=\"ds-num ds-semi\">42</td><td class=\"ds-num ds-soft\">40.9</td><td class=\"ds-num\">L3</td></tr><tr class=\"ds-is-link\"><td class=\"ds-num ds-faint\">2</td><td><span class=\"ds-name\">locksmith6101</span><div class=\"ds-handle\">@locksmith633586</div></td><td class=\"ds-num ds-semi\">44</td><td class=\"ds-num ds-semi\">53</td><td class=\"ds-num ds-bold\">53.1</td><td class=\"ds-num\">W2</td></tr></tbody></table>",
-      "css": ".ds-agate { width: 100%; border-collapse: collapse; border-top: 2px solid var(--ink, #121212); border-bottom: 1px solid var(--ink, #121212); font-family: 'Archivo Narrow', 'Arial Narrow', sans-serif; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; color: var(--ink, #121212); } .ds-agate th { padding: 7px 8px 5px; font-size: 11px; font-weight: 700; line-height: 1.2; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--ink, #121212); white-space: nowrap; } .ds-agate td { padding: 9px 8px; font-size: 14px; line-height: 1.3; vertical-align: middle; border-bottom: 1px solid var(--rule, #B5B1A7); } .ds-agate tbody tr:last-child > td { border-bottom: 0; } .ds-agate th:first-child, .ds-agate td:first-child { padding-left: 4px; } .ds-agate th:last-child, .ds-agate td:last-child { padding-right: 4px; } .ds-agate .ds-num { text-align: right; white-space: nowrap; } .ds-agate tr.ds-is-link { cursor: pointer; } .ds-agate tr.ds-is-link:hover > td { background: var(--news-3, #DAD6CC); } .ds-name { font-size: 15px; font-weight: 600; } .ds-handle { margin-top: 2px; font-size: 12px; color: var(--ink-3, #625F59); } .ds-faint { color: var(--ink-3, #625F59); } .ds-soft { color: var(--ink-2, #3A3835); } .ds-semi { font-weight: 600; } .ds-bold { font-weight: 700; }"
-    },
-    {
-      "name": "Result Marks",
+      "name": "Result Chips and Form Strip",
       "kind": "chip",
-      "refersTo": "result-mark-won",
-      "description": "W filled, L hollow, P dashed hollow, pending as the red marker word. Color never carries the result.",
-      "html": "<span class=\"ds-mark ds-mark-w\" title=\"Won\">W</span> <span class=\"ds-mark ds-mark-l\" title=\"Lost\">L</span> <span class=\"ds-mark ds-mark-p\" title=\"Push\">P</span> <span class=\"ds-pending\">Pending</span>",
-      "css": ".ds-mark { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; font-family: Oswald, 'Arial Narrow', sans-serif; font-size: 12px; font-weight: 700; line-height: 1; box-sizing: border-box; } .ds-mark-w { background: var(--ink, #121212); color: var(--news, #E7E4DC); } .ds-mark-l { border: 2px solid var(--ink, #121212); color: var(--ink, #121212); } .ds-mark-p { border: 2px dashed var(--ink-3, #625F59); color: var(--ink-3, #625F59); } .ds-pending { font-family: 'Archivo Narrow', 'Arial Narrow', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink, #121212); white-space: nowrap; } .ds-pending::before { content: ''; display: inline-block; width: 7px; height: 7px; background: var(--press, #C8102E); margin-right: 6px; vertical-align: 1px; }"
+      "refersTo": "chip-win",
+      "description": "Lettered W / L / P chips; the last-five form strip pads with dashed empty slots.",
+      "html": "<span class=\"ds-form\" role=\"img\" aria-label=\"Last 4, oldest first: W L P W\"><span class=\"ds-chip ds-chip-empty\"></span><span class=\"ds-chip ds-chip-w\">W</span><span class=\"ds-chip ds-chip-l\">L</span><span class=\"ds-chip ds-chip-p\">P</span><span class=\"ds-chip ds-chip-w\">W</span></span>",
+      "css": ".ds-form { display: flex; gap: 4px; } .ds-chip { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 700; font-size: 14px; line-height: 1; } .ds-chip-w { background: rgba(168,245,92,0.14); color: var(--win, #A8F55C); } .ds-chip-l { background: rgba(255,106,61,0.15); color: var(--loss, #FF6A3D); } .ds-chip-p { background: #232A25; color: var(--fg-3, #848C81); } .ds-chip-empty { border: 1px dashed var(--line, #262D28); }"
     },
     {
-      "name": "Form Strip (L5)",
+      "name": "Pending Pill",
+      "kind": "chip",
+      "description": "Outlined pill for unsettled picks, with a lime dot.",
+      "html": "<span class=\"ds-pending\"><span class=\"ds-pending-dot\"></span>Pending</span>",
+      "css": ".ds-pending { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; border: 1px solid var(--line-2, #3A443D); border-radius: 9999px; padding: 3px 8px; font-family: Barlow, Arial, sans-serif; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-2, #A9B0A6); } .ds-pending-dot { width: 6px; height: 6px; border-radius: 9999px; background: var(--win, #A8F55C); }"
+    },
+    {
+      "name": "Creator Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Expandable standings unit: avatar with rank badge, name and handle, Record / Win % / ROI, last-5 form, chevron toggle.",
+      "html": "<div class=\"ds-card\" tabindex=\"0\"><span class=\"ds-av\">HL<span class=\"ds-rank\">1</span></span><div class=\"ds-who\"><a class=\"ds-name\" href=\"#\">Harry Locks</a><div class=\"ds-handle\">@harrylocks</div></div><div class=\"ds-stat\"><div class=\"ds-lab\">Record</div><div class=\"ds-fig\">42-31</div></div><div class=\"ds-stat\"><div class=\"ds-lab\">Win %</div><div class=\"ds-fig ds-win\">57.5%</div></div><div class=\"ds-stat\"><div class=\"ds-lab\">ROI</div><div class=\"ds-fig ds-win\">+5.1</div></div><button class=\"ds-chev\" aria-label=\"Show recent picks\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M2 4.5l4 4 4-4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button></div>",
+      "css": ".ds-card { display: grid; grid-template-columns: 48px minmax(0,1fr) 84px 76px 70px 30px; align-items: center; gap: 16px; padding: 16px 18px; background: var(--panel, #151A17); border: 1px solid var(--line, #262D28); border-radius: 14px; cursor: pointer; transition: background-color 150ms, border-color 150ms; font-family: Barlow, Arial, sans-serif; } .ds-card:hover, .ds-card:focus-visible { background: var(--panel-2, #1C221E); border-color: var(--line-2, #3A443D); outline: none; } .ds-av { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 9999px; border: 2px solid var(--line, #262D28); background: var(--panel-2, #1C221E); color: var(--fg-3, #848C81); font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 17px; } .ds-rank { position: absolute; bottom: -4px; left: -4px; min-width: 20px; height: 20px; padding: 0 4px; display: flex; align-items: center; justify-content: center; border-radius: 9999px; border: 2px solid var(--panel, #151A17); background: #232A25; color: var(--fg-2, #A9B0A6); font-size: 11px; } .ds-name { display: block; color: var(--fg, #EEF1EC); font-size: 17px; font-weight: 700; line-height: 1.25; text-decoration: underline; text-decoration-color: transparent; text-decoration-thickness: 1.5px; text-underline-offset: 3px; transition: text-decoration-color 150ms ease-out; } .ds-name:hover { text-decoration-color: currentColor; } .ds-handle { margin-top: 2px; font-size: 13.5px; color: var(--fg-3, #848C81); } .ds-lab { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3, #848C81); } .ds-fig { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-size: 24px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--fg, #EEF1EC); } .ds-win { color: var(--win, #A8F55C); } .ds-chev { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line-2, #3A443D); border-radius: 7px; background: transparent; color: var(--fg-2, #A9B0A6); cursor: pointer; transition: border-color 150ms, color 150ms; } .ds-chev:hover { border-color: var(--fg-3, #848C81); color: var(--fg, #EEF1EC); } .ds-chev:focus-visible { outline: 2px solid var(--win, #A8F55C); outline-offset: 2px; }"
+    },
+    {
+      "name": "Find a Creator Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Live filter over the standings; border turns lime on focus.",
+      "html": "<label class=\"ds-find\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 20 20\" aria-hidden=\"true\"><circle cx=\"8.5\" cy=\"8.5\" r=\"5.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M13 13l4.5 4.5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg><input type=\"search\" placeholder=\"Find a creator by name or @handle\" aria-label=\"Find a creator\"></label>",
+      "css": ".ds-find { display: flex; align-items: center; gap: 12px; height: 52px; max-width: 380px; padding: 0 16px; background: var(--panel, #151A17); border: 1px solid var(--line, #262D28); border-radius: 10px; color: var(--fg-3, #848C81); transition: border-color 150ms; } .ds-find:focus-within { border-color: var(--win, #A8F55C); } .ds-find input { width: 100%; background: transparent; border: none; outline: none; color: var(--fg, #EEF1EC); font-family: Barlow, Arial, sans-serif; font-size: 16px; font-weight: 500; caret-color: var(--win, #A8F55C); } .ds-find input::placeholder { color: var(--fg-3, #848C81); }"
+    },
+    {
+      "name": "Section Head",
       "kind": "custom",
-      "refersTo": "result-mark-lost",
-      "description": "Five squares, oldest left: filled W, 2px hollow L, dashed P at 60%, 1px empty slot at 25%.",
-      "html": "<svg class=\"ds-l5\" width=\"62\" height=\"10\" viewBox=\"0 0 62 10\" role=\"img\" aria-label=\"Last five, oldest first: W L L W P\"><rect x=\"0\" y=\"0\" width=\"10\" height=\"10\" fill=\"currentColor\"/><rect x=\"14\" y=\"1\" width=\"8\" height=\"8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><rect x=\"27\" y=\"1\" width=\"8\" height=\"8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><rect x=\"39\" y=\"0\" width=\"10\" height=\"10\" fill=\"currentColor\"/><rect x=\"52.75\" y=\"0.75\" width=\"8.5\" height=\"8.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-dasharray=\"2 1.5\" opacity=\"0.6\"/></svg>",
-      "css": ".ds-l5 { display: block; color: var(--ink, #121212); }"
+      "description": "Condensed caps section heading with count and right caption.",
+      "html": "<div class=\"ds-sh\"><h2>Division I<span>8</span></h2><span class=\"ds-sh-cap\">Popular creators</span></div>",
+      "css": ".ds-sh { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; } .ds-sh h2 { margin: 0; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; line-height: 1; color: var(--fg, #EEF1EC); } .ds-sh h2 span { margin-left: 8px; font-family: Barlow, Arial, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: normal; color: var(--fg-3, #848C81); } .ds-sh-cap { font-family: Barlow, Arial, sans-serif; font-size: 13px; color: var(--fg-3, #848C81); }"
     },
     {
-      "name": "Find Field",
-      "kind": "input",
-      "refersTo": "input-find",
-      "description": "Rule-only search field: display label above, 2px ink bottom rule, thickens on focus.",
-      "html": "<label class=\"ds-find\"><span class=\"ds-find-label\">Find a creator</span><input class=\"ds-find-input\" type=\"search\" placeholder=\"Name or @handle\"></label>",
-      "css": ".ds-find { display: block; max-width: 384px; } .ds-find-label { display: block; font-family: Oswald, 'Arial Narrow', sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink, #121212); } .ds-find-input { margin-top: 4px; width: 100%; border: 0; border-bottom: 2px solid var(--ink, #121212); background: transparent; padding: 8px 0; font-family: 'Archivo Narrow', 'Arial Narrow', sans-serif; font-size: 19px; line-height: 1.25; color: var(--ink, #121212); caret-color: var(--press, #C8102E); border-radius: 0; } .ds-find-input::placeholder { color: var(--ink-3, #625F59); } .ds-find-input:focus { outline: none; box-shadow: 0 3px 0 0 var(--ink, #121212); }"
-    },
-    {
-      "name": "URL Field",
-      "kind": "input",
-      "refersTo": "input-url",
-      "description": "Boxed input on /submit with red error state and inline error line.",
-      "html": "<label class=\"ds-url\"><span class=\"ds-url-label\">Post URL</span><input class=\"ds-url-input\" type=\"url\" placeholder=\"https://x.com/handle/status/123…\"><input class=\"ds-url-input ds-url-error\" type=\"url\" value=\"https://example.com/not-a-post\" aria-invalid=\"true\"><p class=\"ds-url-msg\">That doesn't look like an X post URL.</p></label>",
-      "css": ".ds-url { display: block; } .ds-url-label { display: block; font-family: Oswald, 'Arial Narrow', sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink, #121212); } .ds-url-input { margin-top: 8px; width: 100%; box-sizing: border-box; border: 2px solid var(--ink, #121212); background: var(--news-2, #F0EEE8); padding: 12px 14px; font-family: 'Archivo Narrow', 'Arial Narrow', sans-serif; font-size: 16px; color: var(--ink, #121212); caret-color: var(--press, #C8102E); border-radius: 0; transition: border-color 120ms; } .ds-url-input::placeholder { color: var(--ink-3, #625F59); } .ds-url-input:focus { outline: none; box-shadow: 0 0 0 2px var(--ink, #121212); } .ds-url-input:disabled { opacity: 0.5; } .ds-url-error { border-color: var(--press, #C8102E); } .ds-url-msg { margin: 8px 0 0; font-family: 'Archivo Narrow', 'Arial Narrow', sans-serif; font-size: 13px; font-weight: 600; color: var(--press, #C8102E); }"
-    },
-    {
-      "name": "Masthead",
+      "name": "Site Header",
       "kind": "nav",
-      "refersTo": "wordmark-tab",
-      "description": "Wordmark with the red RECEIPTS tab, boxed action, hairline, red dateline strip, 2px closing rule.",
-      "html": "<header class=\"ds-mast\"><div class=\"ds-mast-top\"><a class=\"ds-wordmark\" href=\"#\"><span>Pick</span><span class=\"ds-wordmark-tab\">Receipts</span></a><a class=\"ds-mast-action\" href=\"#\">Submit a pick</a></div><div class=\"ds-dateline\"><span class=\"ds-dateline-date\">Tuesday, October 27, 2026</span><span>Standings and box scores · All times Eastern</span></div></header>",
-      "css": ".ds-mast { border-bottom: 2px solid var(--ink, #121212); font-family: 'Archivo Narrow', 'Arial Narrow', sans-serif; color: var(--ink, #121212); } .ds-mast-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 20px 0 12px; } .ds-wordmark { display: inline-flex; align-items: baseline; font-family: Oswald, 'Arial Narrow', sans-serif; font-size: 32px; font-weight: 700; line-height: 1; letter-spacing: -0.01em; text-transform: uppercase; color: var(--ink, #121212); text-decoration: none; } .ds-wordmark-tab { margin-left: 0.18em; padding: 0.14em 0.22em 0.06em; background: var(--press, #C8102E); color: var(--news, #E7E4DC); } .ds-mast-action { display: inline-flex; align-items: center; border: 2px solid var(--ink, #121212); padding: 7px 12px; font-family: Oswald, 'Arial Narrow', sans-serif; font-size: 13px; font-weight: 500; line-height: 1; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink, #121212); text-decoration: none; transition: background-color 120ms, color 120ms; } .ds-mast-action:hover { background: var(--ink, #121212); color: var(--news, #E7E4DC); } .ds-dateline { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--ink, #121212); padding: 6px 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2, #3A3835); } .ds-dateline-date { color: var(--press, #C8102E); }"
-    },
-    {
-      "name": "Rule Link",
-      "kind": "custom",
-      "refersTo": "rule-link",
-      "description": "Inline link whose 2px rule draws in from the left over 120ms on hover and focus.",
-      "html": "<a class=\"ds-rule-link\" href=\"#\">Harry Locks</a> &nbsp; <a class=\"ds-rule-link ds-rule-link-display\" href=\"#\">Full game log · 8 picks</a>",
-      "css": ".ds-rule-link { color: var(--ink, #121212); font-family: 'Archivo Narrow', 'Arial Narrow', sans-serif; font-size: 15px; font-weight: 600; text-decoration: none; background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat; background-size: 0% 2px; background-position: 0 100%; padding-bottom: 1px; transition: background-size 120ms ease-out; } .ds-rule-link:hover, .ds-rule-link:focus-visible { background-size: 100% 2px; } .ds-rule-link:focus-visible { outline: 2px solid var(--ink, #121212); outline-offset: 2px; } .ds-rule-link-display { font-family: Oswald, 'Arial Narrow', sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; } @media (prefers-reduced-motion: reduce) { .ds-rule-link { transition: none; } }"
+      "description": "Sticky translucent header: logo left, primary button right.",
+      "html": "<header class=\"ds-nav\"><span class=\"ds-nav-logo\">PICK RECEIPTS</span><a class=\"ds-nav-btn\" href=\"#\">Submit a pick</a></header>",
+      "css": ".ds-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 72px; padding: 0 24px; background: rgba(12,15,13,0.9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line, #262D28); } .ds-nav-logo { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 20px; color: var(--fg, #EEF1EC); } .ds-nav-btn { background: var(--win, #A8F55C); color: #000; border-radius: 10px; padding: 10px 18px; font-family: Barlow, Arial, sans-serif; font-size: 15px; font-weight: 700; text-decoration: none; transition: background-color 150ms; } .ds-nav-btn:hover { background: #BDFA7E; } .ds-nav-btn:focus-visible { outline: 2px solid var(--win, #A8F55C); outline-offset: 2px; }"
     }
   ],
   "narrative": {
-    "northStar": "The Agate Page",
-    "overview": "PickReceipts is laid out like the standings page of a newspaper sports section. The creators are teams in a standings table (#, W, L, PCT, ROI, STRK, L5, LAST), yesterday's settled picks sit beside it as box scores, and tonight's pending picks wait under ON DECK. The visitor already knows how to read this format; the design borrows that literacy instead of teaching a new one. Authority comes from density and rules, not from decoration: a heavy 2px ink rule opens every table, hairlines separate rows, a reversed black bar heads every section.\n\nThe material is newsprint: a warm grey-white ground with a faint grain tiled under the whole page, black ink on top, and a single press red used so rarely that it reads as the section tab on the front page. Light mode only, by decision; newsprint is read under daylight. There are no cards, no shadows, no tonal gradients, no rounded corners, and no icons beyond the plus/minus on a row toggle. Wins and losses are letters in squares, W filled and L hollow, so the record reads identically in print, in grayscale, and to a colorblind reader. Losses are listed exactly like wins. This replaced the prior \"Stadium Card\" world (warm paper, amber, cobalt, Manrope, stat tiles) which is the confirmed anti-reference.\n\nMotion is nearly absent. State changes are instant; the only transitions are a 120ms rule that draws in under a link and a 120ms color swap on boxed controls. Nothing animates on load.",
+    "northStar": "The Receipt on the Scoreboard",
+    "overview": "The familiar betting-media app shell, played straight and at full quality: a near-black ground, rounded creator cards with avatars, lettered W/L chips, condensed caps for every number that matters. The palette is lifted directly from the receipt logo: its lime check is the color of a win and of the primary action, its orange cross the color of a loss. Nothing else in the system is saturated, so the two result colors carry the whole page.\n\nDensity is moderate and phone-first. One creator card holds the verdict a visitor from X needs (Record, Win %, ROI, last-5 form) in a single glance, then expands in place for recent picks. Depth comes from three stepped panel tones and hairline borders, never from shadows. The system is dark only.\n\nThe previous \"Agate Page\" newsprint world (paper ground, Oswald, press red, ruled tables) was rejected and is an anti-reference.",
     "keyCharacteristics": [
-      "Standings table, not card grid: every list is an agate table with a 2px ink head rule and hairline rows.",
-      "Newsprint ground with SVG grain, black ink, one press red reserved for four jobs.",
-      "Oswald condensed caps for headlines, figures and controls; Archivo Narrow with tabular numerals for everything else.",
-      "W/L carried by filled vs hollow squares and the letter itself, never by color.",
-      "Zero radius, zero elevation, zero tonal gradients; rules are the only grid.",
-      "Controls are boxed like classified ads: 2px ink border, condensed uppercase, reverse on hover."
+      "Near-black ground, three tonal panel steps, hairline borders, no shadows.",
+      "Lime means win / clears the line / do this; orange means loss / below zero. Nothing else is colored.",
+      "Every result is a letter (W, L, P) on its tinted chip; color never travels alone.",
+      "Barlow Condensed uppercase for headlines, section heads and stats; Barlow for everything read.",
+      "Three radii only: chip (7px), control (10px), card (14px), plus full circles for avatars, dots and pills."
     ],
     "rules": [
-      { "name": "The Four Jobs Rule", "body": "Press red has exactly four jobs: the wordmark tab, the dateline, the pending marker, and form errors. It never decorates, never marks a win or a loss, never fills a button, and never appears in a table body except as the 7px on-deck square.", "section": "colors" },
-      { "name": "The Letter Carries It Rule", "body": "Win, loss and push are told by the letter (W, L, P) and the square it sits in (filled, hollow, dashed hollow). No color, including press red, may be the only thing that distinguishes a result.", "section": "colors" },
-      { "name": "The Ink Reverse Rule", "body": "Emphasis is a reversal, not a tint: a surface that needs weight goes ink-on-news to news-on-ink (section bars, W marks, primary buttons, hovered secondary buttons, the wordmark tab in red). There is no accent-tinted background anywhere in the system.", "section": "colors" },
-      { "name": "The Tabular Rule", "body": "Every table and every figure column is set with font-variant-numeric: tabular-nums and font-feature-settings: \"tnum\". A number that will be compared against the number above or below it never uses proportional figures.", "section": "typography" },
-      { "name": "The Condensed Caps Rule", "body": "Oswald is always uppercase. It appears at three jobs only: headlines and big figures (700), section bars and controls (500), and small display labels (500). It is never used for running text or for table bodies.", "section": "typography" },
-      { "name": "The Bold Means Break-Even Rule", "body": "In any PCT column, 700 weight means the value clears the -110 break-even (52.4%); 400 weight in Ink Soft means it does not. The weight is the signal; a footnote under the table spells it out.", "section": "typography" },
-      { "name": "The No Lift Rule", "body": "No drop shadows, no blurred shadows, no glass, no layered surfaces. If an element needs to come forward, reverse it to ink or give it a 2px ink rule. A box-shadow is permitted only as a hard, zero-blur ink stroke standing in for a focus ring.", "section": "elevation" },
-      { "name": "The Grain Is Paper Rule", "body": "The newsprint grain belongs to the body background and nowhere else. Components do not carry their own texture, tint, or background image.", "section": "elevation" }
+      { "name": "The Two Signals Rule", "body": "Lime and orange are the only saturated colors, and they mean result. A new surface may not introduce a third accent or use lime/orange decoratively.", "section": "colors" },
+      { "name": "The Break-Even Rule", "body": "Win % turns lime only at or above 52.4% (the −110 break-even). Below it the figure stays Chalk, not orange: a sub-break-even rate is not a loss. ROI goes lime above zero, orange below.", "section": "colors" },
+      { "name": "The Tabular Figures Rule", "body": "Every stat, odds value and record figure sets in tabular numerals so columns of numbers align card to card.", "section": "typography" },
+      { "name": "The Condensed Is For Shouting Rule", "body": "Barlow Condensed is uppercase and bold (600+) wherever it appears; it never sets running text.", "section": "typography" },
+      { "name": "The No-Shadow Rule", "body": "A surface rises by getting one panel step lighter and one border step stronger, never by casting a shadow.", "section": "elevation" }
     ],
     "dos": [
-      "Do open every table with a 2px ink rule, separate rows with 1px rule-tone hairlines, and close with a 1px ink rule (.agate).",
-      "Do set every number column in tabular numerals and right-align it (.num).",
-      "Do head every section with the reversed ink bar at Oswald 500 15px uppercase 0.06em, with the optional 11px caption at right.",
-      "Do carry W, L and P as letters in filled, hollow and dashed-hollow squares; keep the hollow stroke at 2px from 16px so a loss scans as heavily as a win.",
-      "Do list losses exactly like wins: same row, same size, same weight, same column.",
-      "Do box controls with a 2px ink border and Oswald 500 uppercase at 0.07em; reverse to ink on hover with a 120ms color transition.",
-      "Do keep press red to the wordmark tab, the dateline, the 7px on-deck marker, and form errors.",
-      "Do show PCT at 700 weight only when it clears 52.4%, and footnote the break-even under the table.",
-      "Do render profile images grayscale, contrast 125%, square, with a 2px ink border.",
-      "Do keep the page light: color-scheme: light, newsprint ground with the body grain, no dark variant.",
-      "Do respect prefers-reduced-motion by dropping the rule-draw transition; nothing else animates."
+      "**Do** letter every result: W, L or P on its chip, with the screen-reader word attached.",
+      "**Do** keep lime and orange for results and the single primary action; everything else is the neutral ramp.",
+      "**Do** step depth with panel tone and border strength (Panel to Raised Panel, Hairline to Strong Hairline) on hover and open states.",
+      "**Do** set every stat in Barlow Condensed bold with tabular figures.",
+      "**Do** keep transitions to 150ms color/transform changes, and honor `prefers-reduced-motion` (all transitions off).",
+      "**Do** use only the three radii (7px, 10px, 14px) plus full circles."
     ],
     "donts": [
-      "Don't add cards, panels, stat tiles, or any bordered-and-filled container. A block is a section bar over a table, bounded by rules.",
-      "Don't add drop shadows, blurred shadows, glass, or layered surfaces. The only permitted box-shadow is a zero-blur ink stroke standing in for a focus ring.",
-      "Don't add tonal gradients. The solid-color linear-gradient inside .rule-link is an underline mechanism, not a license.",
-      "Don't round a corner. Radius is 0px everywhere.",
-      "Don't use color to signal win, loss, push or streak direction; never green for W or red for L.",
-      "Don't use press red for a button fill, a hover state, a table head, a stat, or any decoration; and don't use press-dim, which the build does not use.",
-      "Don't add emoji, glyph icon fonts, or icon packages. The only icon is the inline-SVG plus/minus on the row toggle.",
-      "Don't set Oswald in mixed case or use it for running text or table bodies; don't set Archivo Narrow headlines above 19px.",
-      "Don't use proportional figures in anything that stacks numbers.",
-      "Don't add fades, slides, or load animations; state changes are instant, with only the 120ms rule-draw and color transitions.",
-      "Don't reintroduce the \"Stadium Card\" world (warm paper, amber, cobalt, Manrope, rounded cards) or the March brand palette (signal green, alert orange, Barlow Condensed); both are confirmed anti-references."
+      "**Don't** add shadows, glows or gradients to any surface.",
+      "**Don't** color a below-break-even Win % orange; it stays Chalk.",
+      "**Don't** introduce a light theme; the system is dark only.",
+      "**Don't** introduce a third accent color or use lime/orange as decoration.",
+      "**Don't** return to the rejected \"Agate Page\" newsprint look (paper ground, Oswald, press red, ruled agate tables)."
     ]
   }
 }
