@@ -1,65 +1,36 @@
 import Link from "next/link";
 
 type LogoProps = {
-  /** Pixel height of the icon mark (and reference size for wordmark scaling). */
-  height?: number;
-  /** Render the PR icon mark. */
-  icon?: boolean;
-  /** Render the PickReceipts wordmark. */
-  wordmark?: boolean;
+  /** Font size in px of the wordmark. */
+  size?: number;
   /** Wrap in a Link to /. */
   linked?: boolean;
   className?: string;
 };
 
-export function Logo({
-  height = 40,
-  icon = true,
-  wordmark = true,
-  linked = true,
-  className = "",
-}: LogoProps) {
-  const iconSize = height;
-  const wordSize = Math.round(height * 0.6);
-  const markFontSize = Math.round(iconSize * 0.5);
-
+/**
+ * Masthead wordmark. "PICK" in ink, "RECEIPTS" reversed in the press-red
+ * section tab, the way a sports section tabs its name on the front.
+ */
+export function Logo({ size = 30, linked = true, className = "" }: LogoProps) {
   const mark = (
-    <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      {icon && (
-        <span
-          aria-hidden="true"
-          className="relative inline-flex items-center justify-center overflow-hidden rounded-[10px] bg-ink text-amber"
-          style={{ width: iconSize, height: iconSize }}
-        >
-          <span
-            className="absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(circle at 25% 30%, rgba(255,179,71,0.32), transparent 55%)",
-            }}
-          />
-          <span
-            className="relative font-display font-extrabold leading-none"
-            style={{ fontSize: markFontSize, letterSpacing: "-0.04em" }}
-          >
-            PR
-          </span>
-        </span>
-      )}
-      {wordmark && (
-        <span
-          className="font-display font-extrabold tracking-display leading-none text-ink select-none"
-          style={{ fontSize: wordSize }}
-        >
-          Pick<span className="text-amber-deep">Receipts</span>
-        </span>
-      )}
+    <span
+      className={`inline-flex items-baseline font-display font-bold uppercase leading-none tracking-[-0.01em] text-ink ${className}`}
+      style={{ fontSize: size }}
+    >
+      <span>Pick</span>
+      <span
+        className="ml-[0.18em] bg-press text-news"
+        style={{ padding: "0.14em 0.22em 0.06em" }}
+      >
+        Receipts
+      </span>
     </span>
   );
 
   if (!linked) return mark;
   return (
-    <Link href="/" aria-label="PickReceipts home" className="inline-flex items-center">
+    <Link href="/" aria-label="PickReceipts home" className="inline-flex">
       {mark}
     </Link>
   );

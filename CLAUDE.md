@@ -65,20 +65,22 @@ betting-creator-tracker/
 │   ├── migrations/                    # Alembic
 │   ├── tests/
 │   └── requirements.txt
-└── frontend/
+└── frontend/                          # Design: "The Agate Page" — newsprint standings; see DESIGN.md + PRODUCT.md
     ├── app/
-    │   ├── page.tsx                   # Homepage — creator cards (filtered to active picks)
-    │   ├── creators/[id]/page.tsx     # Creator detail (full pick history)
+    │   ├── layout.tsx                 # Masthead (wordmark, dateline in ET, Submit link) + footer; force-dynamic
+    │   ├── page.tsx                   # Homepage — builds standings rows + box-score lines server-side
+    │   ├── creators/[id]/page.tsx     # Creator "team page": record strip, on deck, game log, by sport
     │   ├── submit/                    # /submit — anonymous URL submission form
     │   │   ├── page.tsx               # Server shell, reads NEXT_PUBLIC_TURNSTILE_SITE_KEY
     │   │   └── SubmitForm.tsx         # Client form + Turnstile widget + honeypot + success panel
     │   ├── lib/api.ts                 # Typed API client (incl. submitPick)
+    │   ├── lib/picks.ts               # Pick formatting + record arithmetic (ET dates, streak, L5, PCT)
     │   └── components/
-    │       ├── CreatorCards.tsx       # Homepage card with isActive filter
-    │       └── ...
+    │       ├── HomeBoard.tsx          # Client: find-a-creator filter, division tables w/ expandable recent picks, On deck + Box scores
+    │       └── PostHog*.tsx
     └── components/
-        ├── Logo.tsx
-        └── brand.tsx                  # Button, Badge, StatCard, WLRecord
+        ├── Logo.tsx                   # Type wordmark: PICK + reversed red RECEIPTS tab
+        └── brand.tsx                  # SectionBar, ResultMark (W/L/P squares), FormStrip, Pct, Button, BoxedLink
 ```
 
 ## Data Flow

@@ -8,61 +8,33 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // PickReceipts — Stadium Card palette (light-first).
-        // Warm paper surfaces, ink ramp, amber signal, cobalt institutional.
-        // No red/green; W/L is conveyed by filled-vs-hollow + amber-vs-stone.
-        paper: {
-          DEFAULT: "#F5F2EC",
-          2: "#FBFAF6",
-          3: "#ECE7DC",
+        // PickReceipts — The Agate Page.
+        // Newsprint ground, ink, one press red. W/L is carried by filled vs
+        // hollow marks and by the letter itself, never by color.
+        news: {
+          DEFAULT: "#E7E4DC",
+          2: "#F0EEE8",
+          3: "#DAD6CC",
         },
         ink: {
-          DEFAULT: "#14130F",
-          700: "#2B2823",
-          500: "#6B645A",
-          300: "#A8A096",
+          DEFAULT: "#121212",
+          2: "#3A3835",
+          3: "#625F59",
         },
         rule: {
-          DEFAULT: "#D9D3C5",
-          soft: "rgba(20, 19, 15, 0.08)",
+          DEFAULT: "#B5B1A7",
         },
-        amber: {
-          DEFAULT: "#FFB347",
-          deep: "#C77A1F",
-          dim: "rgba(255, 179, 71, 0.16)",
-          glow: "rgba(255, 179, 71, 0.42)",
+        press: {
+          DEFAULT: "#C8102E",
+          dim: "rgba(200, 16, 46, 0.10)",
         },
-        cobalt: {
-          DEFAULT: "#1F3A8A",
-          deep: "#15275C",
-          dim: "rgba(31, 58, 138, 0.10)",
-        },
-        stone: {
-          DEFAULT: "#7A6B4F",
-          dim: "rgba(122, 107, 79, 0.14)",
-        },
-        // Warm white for text on dark banner gradients.
-        moon: "#F5F2EC",
       },
       fontFamily: {
-        sans: ["var(--font-manrope)", "system-ui", "sans-serif"],
-        display: ["var(--font-manrope)", "system-ui", "sans-serif"],
-        mono: ["var(--font-plex-mono)", "ui-monospace", "monospace"],
+        display: ["var(--font-oswald)", "Oswald", "Arial Narrow", "sans-serif"],
+        sans: ["var(--font-archivo)", "Archivo Narrow", "Arial Narrow", "sans-serif"],
       },
-      letterSpacing: {
-        display: "-0.025em",
-        tight: "-0.015em",
-        label: "0.10em",
-        "label-x": "0.14em",
-      },
-      borderRadius: {
-        card: "18px",
-      },
-      boxShadow: {
-        card: "0 1px 0 rgba(20,19,15,0.04), 0 1px 2px rgba(20,19,15,0.06)",
-        lift: "0 6px 24px rgba(20,19,15,0.08)",
-        focus: "0 0 0 3px rgba(255,179,71,0.42)",
-        avatar: "0 2px 8px rgba(0,0,0,0.25)",
+      transitionDuration: {
+        120: "120ms",
       },
     },
   },
