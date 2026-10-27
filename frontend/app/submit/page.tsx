@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import SubmitForm from "./SubmitForm";
+import { Standfirst } from "../../components/brand";
 
 export const metadata: Metadata = {
   title: "Submit a pick · PickReceipts",
@@ -11,30 +12,26 @@ export const metadata: Metadata = {
 const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
 
 export default function SubmitPage() {
-  const siteKey =
-    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || TURNSTILE_TEST_SITE_KEY;
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || TURNSTILE_TEST_SITE_KEY;
 
   return (
-    <div className="max-w-xl">
-      <div className="mb-10">
-        <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mb-3">
-          Submit a pick
-        </div>
-        <h1 className="font-display font-extrabold text-4xl sm:text-5xl tracking-display leading-[1.05] text-ink">
-          Paste an <span className="text-amber-deep">X post</span> URL.
-        </h1>
-        <p className="text-ink-500 mt-4 text-[15px] leading-relaxed">
-          We&apos;ll fetch the post, extract any picks, match them to scheduled games,
-          and add them to the creator&apos;s record.
-        </p>
+    <div className="max-w-2xl">
+      <h1 className="font-display text-[clamp(40px,7vw,80px)] font-bold uppercase leading-[0.9] tracking-[-0.015em] text-ink text-balance">
+        Saw a pick on X? Put it on the record.
+      </h1>
+      <Standfirst className="mt-5">
+        Paste the post&apos;s link. We fetch it, read the picks out of the text and images, match
+        them to scheduled games, and add them to the creator&apos;s standings.
+      </Standfirst>
+
+      <div className="mt-10">
+        <SubmitForm turnstileSiteKey={siteKey} />
       </div>
 
-      <SubmitForm turnstileSiteKey={siteKey} />
-
-      <div className="mt-10 border-t border-rule pt-6 text-xs text-ink-500 leading-relaxed">
-        Submissions are anonymous and rate-limited. We never log who you are. New
-        creators appear under Lesser Known Creators until they build a track record.
-      </div>
+      <p className="mt-10 border-t border-ink pt-4 text-[13px] leading-relaxed text-ink-3">
+        Submissions are anonymous and rate-limited. New creators appear in Division II until they
+        build a track record.
+      </p>
     </div>
   );
 }
