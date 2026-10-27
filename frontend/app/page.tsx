@@ -1,8 +1,77 @@
+import Link from "next/link";
 import { getAllCreatorsWithRecords, getCreatorPicks } from "./lib/api";
-import type { Pick } from "./lib/api";
-import CreatorCards from "./components/CreatorCards";
+import type { Creator, CreatorRecord, Pick } from "./lib/api";
+import {
+  activePicks,
+  computeStreak,
+  formatPickDetail,
+  lastResults,
+  legText,
+  parlayLegs,
+  pctValue,
+  recentSettled,
+  settledNewestFirst,
+  sportLabel,
+} from "./lib/picks";
+import HomeBoard, { type BoxLine, type Division, type PickLite, type StandingsRow } from "./components/HomeBoard";
+import { SectionBar, Standfirst } from "../components/brand";
 
 const FEATURED_CREATOR_NAMES = ["Trent", "DanAI", "Dr. Locks", "Harry Locks", "Gavin"];
+
+function toLite(p: Pick): PickLite {
+  const isParlay = p.pick_type === "parlay";
+  const legs = isParlay
+    ? parlayLegs(p.pick_detail as Record<string, unknown>).map((leg) => ({
+        text: legText(leg),
+        event: leg.event,
+        result: leg.result,
+      }))
+    : null;
+  return {
+    id: p.pick_id,
+    date: p.event_date ?? null,
+    sport: sportLabel(p),
+    title: formatPickDetail(p.pick_type, p.pick_detail as Record<string, unknown>),
+    event: p.event || null,
+    odds: p.odds || null,
+    status: p.status,
+    legs,
+  };
+}
+
+function toRow(creator: Creator, record: CreatorRecord | null, picks: Pick[]): StandingsRow {
+  const wins = record?.wins ?? 0;
+  const losses = record?.losses ?? 0;
+  const pushes = record?.pushes ?? 0;
+  const total = record?.total_picks ?? picks.length;
+  const settled = settledNewestFirst(picks);
+  const recent = [...activePicks(picks), ...recentSettled(picks, 2)].slice(0, 3).map(toLite);
+  return {
+    id: creator.creator_id,
+    name: creator.display_name,
+    handles: creator.platforms,
+    gp: wins + losses,
+    wins,
+    losses,
+    pushes,
+    pct: pctValue(record?.win_rate, wins + losses),
+    roi: record && total > 0 ? record.roi : null,
+    streak: computeStreak(picks),
+    last5: lastResults(picks, 5),
+    last: settled[0] ? toLite(settled[0]) : null,
+    recent,
+    total,
+    allSettled: settled.slice(0, 14).map(toLite),
+  };
+}
+
+function byStandings(a: StandingsRow, b: StandingsRow): number {
+  if (a.pct === null && b.pct === null) return b.total - a.total;
+  if (a.pct === null) return 1;
+  if (b.pct === null) return -1;
+  if (b.pct !== a.pct) return b.pct - a.pct;
+  return b.gp - a.gp;
+}
 
 export default async function Home() {
   let data: Awaited<ReturnType<typeof getAllCreatorsWithRecords>> = [];
@@ -14,15 +83,16 @@ export default async function Home() {
     error = true;
   }
 
-  const featured: { creator: any; record: any; picks: Pick[] }[] = [];
-  const lesserKnown: { creator: any; record: any; picks: Pick[] }[] = [];
+  const featured: StandingsRow[] = [];
+  const lesserKnown: StandingsRow[] = [];
+  const settledLines: BoxLine[] = [];
+  const onDeckLines: BoxLine[] = [];
 
   if (!error && data.length > 0) {
-    const addedIds = new Set<string>();
-
+    const seen = new Set<string>();
     for (const { creator, record } of data) {
-      if (addedIds.has(creator.creator_id)) continue;
-      addedIds.add(creator.creator_id);
+      if (seen.has(creator.creator_id)) continue;
+      seen.add(creator.creator_id);
 
       let picks: Pick[] = [];
       try {
@@ -31,115 +101,113 @@ export default async function Home() {
         // continue with empty picks
       }
 
-      if (FEATURED_CREATOR_NAMES.includes(creator.display_name)) {
-        featured.push({ creator, record, picks });
-      } else {
-        lesserKnown.push({ creator, record, picks });
+      const row = toRow(creator, record, picks);
+      (FEATURED_CREATOR_NAMES.includes(creator.display_name) ? featured : lesserKnown).push(row);
+
+      for (const p of recentSettled(picks, 2)) {
+        settledLines.push({ ...toLite(p), creatorId: creator.creator_id, creatorName: creator.display_name });
+      }
+      for (const p of activePicks(picks)) {
+        onDeckLines.push({ ...toLite(p), creatorId: creator.creator_id, creatorName: creator.display_name });
       }
     }
-
-    featured.sort(
-      (a, b) =>
-        FEATURED_CREATOR_NAMES.indexOf(a.creator.display_name) -
-        FEATURED_CREATOR_NAMES.indexOf(b.creator.display_name),
-    );
   }
 
-  const hasAnyCreators = featured.length > 0 || lesserKnown.length > 0;
+  featured.sort(byStandings);
+  lesserKnown.sort(byStandings);
+  settledLines.sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
+  onDeckLines.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
+
+  // Quiet stretch (no games settled in the last two days): show the latest
+  // settled picks instead of an empty column, and say so in the heading.
+  const settledIsRecent = settledLines.length > 0;
+  if (!settledIsRecent) {
+    const perCreator = 3;
+    for (const row of [...featured, ...lesserKnown]) {
+      for (const p of row.allSettled.slice(0, perCreator)) {
+        settledLines.push({ ...p, creatorId: row.id, creatorName: row.name });
+      }
+    }
+    settledLines.sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
+  }
+
+  const divisions: Division[] = [
+    { id: "i", title: "Division I · Popular creators", rows: featured },
+    { id: "ii", title: "Division II · Lesser known", rows: lesserKnown },
+  ].filter((d) => d.rows.length > 0);
+
+  const hasAnyCreators = divisions.length > 0;
 
   return (
     <div>
-      {/* Hero */}
-      <div className="mb-14">
-        <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mb-4">
-          Transparent Betting Records
-        </div>
-        <h1 className="font-display font-extrabold text-5xl sm:text-6xl tracking-display leading-[1.0] text-ink text-balance">
-          Every pick. <span className="text-amber-deep">Every loss.</span> On the record.
+      <section>
+        <h1 className="font-display text-[clamp(46px,8.4vw,108px)] font-bold uppercase leading-[0.9] tracking-[-0.015em] text-ink text-balance">
+          Every pick. Every loss. On the record.
         </h1>
-        <p className="text-ink-500 mt-5 max-w-xl text-[15px] leading-relaxed">
-          Your favorite creator&apos;s publicly posted picks. We surface the data —
-          wins, losses, and everything in between — so you can decide who&apos;s worth tailing.
-        </p>
-      </div>
+        <Standfirst className="mt-5">
+          Creators&apos; publicly posted picks, settled against final scores and box scores. Find
+          who is actually worth tailing before you tail.
+        </Standfirst>
+      </section>
 
       {error && (
-        <div className="rounded-[10px] border border-rule bg-paper-2 p-4 text-ink-700 text-sm">
-          Could not connect to API. Make sure the backend is running on{" "}
-          <code className="font-mono bg-paper-3 px-1.5 py-0.5 rounded text-ink">
-            localhost:8000
-          </code>
-          .
+        <div className="mt-10 border-y-2 border-ink py-4 text-[15px] text-ink-2">
+          <p className="font-semibold text-ink">Could not reach the record.</p>
+          <p>Try again in a minute.</p>
+          {process.env.NODE_ENV === "development" && (
+            <p className="mt-2 text-[13px] text-ink-3">
+              Development: make sure the backend is running or NEXT_PUBLIC_API_URL points at it.
+            </p>
+          )}
         </div>
       )}
 
       {!error && !hasAnyCreators && (
-        <div className="text-ink-500 text-sm">No creators found.</div>
+        <p className="mt-10 border-y-2 border-ink py-4 text-[15px] text-ink-2">
+          No creators on the record yet.{" "}
+          <Link href="/submit" className="rule-link font-semibold text-ink">
+            Submit the first pick.
+          </Link>
+        </p>
       )}
 
-      {!error && featured.length > 0 && (
-        <section>
-          <h2 className="font-display font-extrabold text-3xl tracking-display text-ink mb-5">
-            Popular Creators
-          </h2>
-          <CreatorCards creators={featured} />
-        </section>
+      {!error && hasAnyCreators && (
+        <HomeBoard
+          divisions={divisions}
+          settled={settledLines.slice(0, 14)}
+          settledLabel={settledIsRecent ? "Settled, last two days" : "Latest settled"}
+          onDeck={onDeckLines.slice(0, 14)}
+        />
       )}
 
-      {!error && lesserKnown.length > 0 && (
-        <section className="mt-14">
-          <h2 className="font-display font-extrabold text-3xl tracking-display text-ink mb-5">
-            Lesser Known Creators
-          </h2>
-          <CreatorCards creators={lesserKnown} />
-        </section>
-      )}
-
-      <p className="text-xs text-ink-500 mt-10">
-        Picks sourced from public social media posts. Picks settle within ~15 minutes after the game ends.
-      </p>
-
-      {/* How it works */}
-      <div className="mt-14 border-t border-rule pt-10">
-        <div className="font-mono text-[10px] uppercase tracking-label-x font-medium text-ink-500 mb-5">
-          How it works
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+      <section className="mt-20" aria-labelledby="how-heading">
+        <SectionBar>
+          <span id="how-heading">How the record is kept</span>
+        </SectionBar>
+        <div className="grid grid-cols-1 border-b border-ink sm:grid-cols-3 sm:divide-x sm:divide-rule">
           {[
             {
-              n: "01",
-              title: "Capture picks",
-              body: "Picks are pulled from creators' public social media posts and extracted using AI.",
+              head: "Capture.",
+              body: "Picks come from creators' public posts on X. Anyone can submit a post; it is fetched live and the picks are read out of the text and images.",
             },
             {
-              n: "02",
-              title: "Verify outcomes",
-              body: "Game scores are checked automatically against real results from official sports data.",
+              head: "Settle.",
+              body: "Once the game ends, every pick is checked against final scores and box scores: spreads, moneylines, totals, props, and parlays leg by leg.",
             },
             {
-              n: "03",
-              title: "Build the record",
-              body: "W/L records and ROI are calculated transparently. ROI is measured against the −110 break-even line (52.4%).",
+              head: "Record.",
+              body: "Wins, losses and pushes add up to the standings. ROI is measured against the −110 break-even line, a 52.4% win rate.",
             },
           ].map((step) => (
-            <div
-              key={step.n}
-              className="rounded-[14px] border border-rule bg-paper-2 p-5 shadow-card"
+            <p
+              key={step.head}
+              className="py-4 text-[15px] leading-[1.5] text-ink-2 sm:px-5 sm:first:pl-0 sm:last:pr-0"
             >
-              <div className="font-mono text-[10px] uppercase tracking-label-x font-semibold text-amber-deep mb-2">
-                {step.n}
-              </div>
-              <div className="font-display font-extrabold text-lg tracking-tight text-ink mb-1">
-                {step.title}
-              </div>
-              <p className="text-ink-500 leading-relaxed">{step.body}</p>
-            </div>
+              <strong className="font-bold text-ink">{step.head}</strong> {step.body}
+            </p>
           ))}
         </div>
-        <p className="text-xs text-ink-500 mt-6">
-          For entertainment and transparency purposes only. Not financial advice.
-        </p>
-      </div>
+      </section>
     </div>
   );
 }
