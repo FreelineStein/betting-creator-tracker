@@ -19,7 +19,7 @@ from app.scrapers.base import BaseScraper, RawPost
 
 log = structlog.get_logger()
 
-OEMBED_URL = "https://publish.twitter.com/oembed"
+OEMBED_URL = "https://publish.x.com/oembed"
 
 # Cap concurrent oEmbed calls so a burst of anonymous /submissions traffic
 # can't blow through X's free quota in seconds. Process-local — fine for the
@@ -79,7 +79,9 @@ class TwitterScraper(BaseScraper):
         return RawPost(
             platform="twitter",
             post_type="tweet",
-            post_url=data.get("url", tweet_url),
+            # oEmbed now returns x.com URLs; keep the twitter.com form existing
+            # Source rows were stored with so post_url dedup still matches.
+            post_url=data.get("url", tweet_url).replace("https://x.com/", "https://twitter.com/"),
             posted_at=posted_at,
             caption=text,
             raw={
@@ -113,7 +115,7 @@ def _extract_date_from_html(html: str) -> Optional[datetime]:
     midnight UTC would collapse to the prior evening in ET and mis-pin
     consecutive same-team series games to the wrong day.
     """
-    match = re.search(r'href="[^"]*twitter\.com/[^"]*">([^<]+)</a>\s*</blockquote>', html)
+    match = re.search(r'href="[^"]*(?:twitter|x)\.com/[^"]*">([^<]+)</a>\s*</blockquote>', html)
     if not match:
         return None
     try:
@@ -127,7 +129,7 @@ def _extract_handle_from_url(author_url: str) -> Optional[str]:
     """Extract @handle from author URL like https://twitter.com/gavinmchughh."""
     if not author_url:
         return None
-    match = re.search(r"twitter\.com/(\w+)", author_url)
+    match = re.search(r"(?:twitter|x)\.com/(\w+)", author_url)
     return f"@{match.group(1)}" if match else None
 
 
