@@ -31,7 +31,7 @@ import {
   sportLabel,
 } from "../../lib/picks";
 
-type Props = { params: { id: string } };
+type Props = { params: Promise<{ id: string }> };
 
 function handleLabel(p: { platform: string; handle: string }): string {
   const bare = p.handle.replace(/^@/, "");
@@ -43,12 +43,13 @@ function handleLabel(p: { platform: string; handle: string }): string {
 }
 
 export default async function CreatorPage({ params }: Props) {
+  const { id } = await params;
   let creator: Creator, record, picks: Pick[];
   try {
     [creator, record, picks] = await Promise.all([
-      getCreator(params.id),
-      getCreatorRecord(params.id),
-      getCreatorPicks(params.id),
+      getCreator(id),
+      getCreatorRecord(id),
+      getCreatorPicks(id),
     ]);
   } catch {
     return (
